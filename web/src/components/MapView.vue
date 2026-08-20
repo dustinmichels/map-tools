@@ -189,9 +189,10 @@ const showRouteTooltip = (event: RouteHoverEvent) => {
   }
 
   map.value.getCanvas().style.cursor = "pointer";
-  routeTooltip.value.setDOMContent(content).setLngLat([event.lngLat.lng, event.lngLat.lat]).addTo(
-    map.value,
-  );
+  routeTooltip.value
+    .setDOMContent(content)
+    .setLngLat([event.lngLat.lng, event.lngLat.lat])
+    .addTo(map.value);
 };
 
 const detachRouteTooltip = (routeId: string) => {

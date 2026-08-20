@@ -408,7 +408,6 @@ onUnmounted(() => {
       </div>
 
       <p class="compare-note">Load both people, then choose a shared box or compare every Ride.</p>
-
     </div>
 
     <AreaSelectionCard
@@ -416,7 +415,7 @@ onUnmounted(() => {
       :title="areaStepTitle"
       :description="areaStepDescription"
       :city-name="cityName"
-      :bbox="bbox"
+      v-model:bbox="bbox"
       :show-current-area="!compareAllRides"
       @back="currentStep = 1"
       @select-city="handleSelectCity"
@@ -441,7 +440,9 @@ onUnmounted(() => {
           <div class="processing-ring"></div>
           <h3>Processing both people…</h3>
           <p v-if="compareAllRides">Loading every Ride activity from both uploaded datasets.</p>
-          <p v-else>Running the same area filter for {{ personOneLabel }} and {{ personTwoLabel }}.</p>
+          <p v-else>
+            Running the same area filter for {{ personOneLabel }} and {{ personTwoLabel }}.
+          </p>
         </div>
 
         <div v-else-if="filterErrors.length" class="error-stack">
@@ -507,7 +508,9 @@ onUnmounted(() => {
 
         <div class="card-actions mt-auto">
           <button class="btn btn-secondary" @click="currentStep = 2">Back</button>
-          <button v-if="!isFiltering" class="btn btn-secondary" @click="resetFlow">Start over</button>
+          <button v-if="!isFiltering" class="btn btn-secondary" @click="resetFlow">
+            Start over
+          </button>
         </div>
       </section>
 

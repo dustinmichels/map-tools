@@ -117,11 +117,7 @@ export function useActivityDataset() {
       return;
     }
 
-    const {
-      bbox = null,
-      geometryMode = "simplified",
-      preserveResults = false,
-    } = options;
+    const { bbox = null, geometryMode = "simplified", preserveResults = false } = options;
 
     isFiltering.value = true;
     if (preserveResults) {

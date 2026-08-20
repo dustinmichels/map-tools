@@ -123,9 +123,7 @@ onMounted(() => {
         >
       </div>
 
-      <p class="guide-copy">
-        Request the archive in Strava, then download the ZIP from the email.
-      </p>
+      <p class="guide-copy">Request the archive in Strava, then download the ZIP from the email.</p>
 
       <ol class="guide-steps">
         <li v-for="step in guideSteps" :key="step">{{ step }}</li>

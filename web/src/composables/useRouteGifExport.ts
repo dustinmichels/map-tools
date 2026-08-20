@@ -6,6 +6,7 @@ const DEFAULT_EXPORT_SIZE = 768;
 const DEFAULT_PREVIEW_SIZE = 420;
 const DEFAULT_FRAME_DELAY_MS = 45;
 const DEFAULT_ROUTE_COLOR = "#ff8c00";
+const DEFAULT_FLASH_COLOR = "#ffffff";
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{6})$/;
 
 interface RouteGifOptions {
@@ -49,9 +50,15 @@ const normalizeRouteColor = (value: string) => {
   return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_ROUTE_COLOR;
 };
 
+const normalizeFlashColor = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  return HEX_COLOR_PATTERN.test(normalized) ? normalized : DEFAULT_FLASH_COLOR;
+};
+
 export function useRouteGifExport() {
   const frameDelayMs = ref(DEFAULT_FRAME_DELAY_MS);
   const routeColor = ref(DEFAULT_ROUTE_COLOR);
+  const flashColor = ref(DEFAULT_FLASH_COLOR);
   const previewUrl = ref<string | null>(null);
   const isPreparingPreview = ref(false);
   const isDownloading = ref(false);
@@ -59,6 +66,11 @@ export function useRouteGifExport() {
   const exportStatus = ref<string | null>(null);
   const progress = ref<RouteGifProgress | null>(null);
   const progressMode = ref<"preview" | "download" | null>(null);
+
+  const showCityName = ref(true);
+  const cityFont = ref("serif");
+  const cityPosition = ref("bottom-left");
+  const cityNameOverlay = ref("");
 
   let previewBuildToken = 0;
 
@@ -99,10 +111,15 @@ export function useRouteGifExport() {
     routeColor.value = normalizeRouteColor(value);
   };
 
+  const updateFlashColor = (value: string) => {
+    flashColor.value = normalizeFlashColor(value);
+  };
+
   const resetState = () => {
     previewBuildToken += 1;
     frameDelayMs.value = DEFAULT_FRAME_DELAY_MS;
     routeColor.value = DEFAULT_ROUTE_COLOR;
+    flashColor.value = DEFAULT_FLASH_COLOR;
     isPreparingPreview.value = false;
     isDownloading.value = false;
     exportError.value = null;
@@ -110,6 +127,10 @@ export function useRouteGifExport() {
     progress.value = null;
     progressMode.value = null;
     revokePreviewUrl();
+    showCityName.value = true;
+    cityFont.value = "serif";
+    cityPosition.value = "bottom-left";
+    cityNameOverlay.value = "";
   };
 
   const validateRoutes = (geoJSON: GeoJSONFeatureCollection | null) => {
@@ -142,6 +163,11 @@ export function useRouteGifExport() {
         size: DEFAULT_PREVIEW_SIZE,
         frameDelayMs: frameDelayMs.value,
         routeColor: routeColor.value,
+        flashColor: flashColor.value,
+        cityName: cityNameOverlay.value || options.cityName,
+        showCityName: showCityName.value,
+        cityFont: cityFont.value,
+        cityPosition: cityPosition.value,
         onProgress: (nextProgress) => {
           if (currentToken === previewBuildToken) {
             progress.value = nextProgress;
@@ -193,6 +219,11 @@ export function useRouteGifExport() {
         size: DEFAULT_EXPORT_SIZE,
         frameDelayMs: frameDelayMs.value,
         routeColor: routeColor.value,
+        flashColor: flashColor.value,
+        cityName: cityNameOverlay.value || options.cityName,
+        showCityName: showCityName.value,
+        cityFont: cityFont.value,
+        cityPosition: cityPosition.value,
         onProgress: (nextProgress) => {
           progress.value = nextProgress;
         },
@@ -216,13 +247,19 @@ export function useRouteGifExport() {
   return {
     frameDelayMs,
     routeColor,
+    flashColor,
     previewUrl,
     isPreparingPreview,
     isDownloading,
     exportError,
     statusMessage,
+    showCityName,
+    cityFont,
+    cityPosition,
+    cityNameOverlay,
     updateFrameDelayMs,
     updateRouteColor,
+    updateFlashColor,
     preparePreview,
     downloadGif,
     resetState,

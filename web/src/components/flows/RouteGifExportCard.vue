@@ -7,15 +7,25 @@ const props = defineProps<{
   isPreparingPreview: boolean;
   isDownloading: boolean;
   routeColor: string;
+  flashColor: string;
   frameDelayMs: number;
   previewUrl: string | null;
   exportError: string | null;
   statusMessage: string | null;
+  showCityName: boolean;
+  cityFont: string;
+  cityPosition: string;
+  cityNameOverlay: string;
 }>();
 
 const emit = defineEmits<{
   (event: "update:routeColor", value: string): void;
+  (event: "update:flashColor", value: string): void;
   (event: "update:frameDelayMs", value: number): void;
+  (event: "update:showCityName", value: boolean): void;
+  (event: "update:cityFont", value: string): void;
+  (event: "update:cityPosition", value: string): void;
+  (event: "update:cityNameOverlay", value: string): void;
   (event: "export"): void;
 }>();
 
@@ -136,6 +146,10 @@ const onDurationBlur = () => {
 const emitRouteColor = (event: Event) => {
   emit("update:routeColor", (event.target as HTMLInputElement).value);
 };
+
+const emitFlashColor = (event: Event) => {
+  emit("update:flashColor", (event.target as HTMLInputElement).value);
+};
 </script>
 
 <template>
@@ -177,6 +191,20 @@ const emitRouteColor = (event: Event) => {
       </label>
 
       <label class="gif-field">
+        <span class="gif-field-label">Flash color</span>
+        <div class="gif-color-control">
+          <input
+            class="gif-color-input"
+            type="color"
+            :disabled="controlsDisabled"
+            :value="flashColor"
+            @input="emitFlashColor"
+          />
+          <span class="gif-color-value">{{ flashColor.toUpperCase() }}</span>
+        </div>
+      </label>
+
+      <label class="gif-field">
         <span class="gif-field-label">Frame delay (ms)</span>
         <input
           class="gif-field-input"
@@ -208,6 +236,56 @@ const emitRouteColor = (event: Event) => {
           @blur="onDurationBlur"
         />
         <span class="gif-field-help">Time to draw all routes.</span>
+      </label>
+
+      <label class="gif-field gif-checkbox-field">
+        <input
+          type="checkbox"
+          :disabled="controlsDisabled"
+          :checked="showCityName"
+          @change="emit('update:showCityName', ($event.target as HTMLInputElement).checked)"
+        />
+        <span class="gif-field-label">Overlay city name</span>
+      </label>
+
+      <label v-if="showCityName" class="gif-field">
+        <span class="gif-field-label">City label text</span>
+        <input
+          class="gif-field-input"
+          type="text"
+          :disabled="controlsDisabled"
+          :value="cityNameOverlay"
+          @input="emit('update:cityNameOverlay', ($event.target as HTMLInputElement).value)"
+        />
+      </label>
+
+      <label v-if="showCityName" class="gif-field">
+        <span class="gif-field-label">Font style</span>
+        <select
+          class="gif-field-select"
+          :disabled="controlsDisabled"
+          :value="cityFont"
+          @change="emit('update:cityFont', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="serif">Serif (Georgia)</option>
+          <option value="sans-serif">Sans-Serif</option>
+          <option value="monospace">Monospace</option>
+        </select>
+      </label>
+
+      <label v-if="showCityName" class="gif-field">
+        <span class="gif-field-label">Position</span>
+        <select
+          class="gif-field-select"
+          :disabled="controlsDisabled"
+          :value="cityPosition"
+          @change="emit('update:cityPosition', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="bottom-left">Bottom Left</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="top-left">Top Left</option>
+          <option value="top-right">Top Right</option>
+        </select>
       </label>
     </div>
 
@@ -350,7 +428,9 @@ const emitRouteColor = (event: Event) => {
 
 .gif-color-value {
   color: #e6e6e6;
-  font-family: ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
   font-size: 0.92rem;
 }
 
@@ -388,5 +468,41 @@ const emitRouteColor = (event: Event) => {
 
 .gif-export-error {
   margin-top: 0;
+}
+
+.gif-checkbox-field {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 12px;
+}
+
+.gif-checkbox-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #ff8c00;
+}
+
+.gif-field-select {
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #0f0f0f;
+  color: #fff;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+  padding-right: 36px;
+}
+
+.gif-field-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>

@@ -28,7 +28,7 @@ watch(
       inputError.value = false;
     }
   },
-  { immediate: true, deep: true }
+  { immediate: true, deep: true },
 );
 
 const handleInput = () => {
@@ -38,15 +38,22 @@ const handleInput = () => {
     return;
   }
 
-  const parts = text.split(/[\s,]+/).map((p) => parseFloat(p)).filter((n) => !isNaN(n));
+  const parts = text
+    .split(/[\s,]+/)
+    .map((p) => parseFloat(p))
+    .filter((n) => !isNaN(n));
 
   if (parts.length === 4) {
     const [minLng, minLat, maxLng, maxLat] = parts;
     if (
-      minLng >= -180 && minLng <= 180 &&
-      maxLng >= -180 && maxLng <= 180 &&
-      minLat >= -90 && minLat <= 90 &&
-      maxLat >= -90 && maxLat <= 90 &&
+      minLng >= -180 &&
+      minLng <= 180 &&
+      maxLng >= -180 &&
+      maxLng <= 180 &&
+      minLat >= -90 &&
+      minLat <= 90 &&
+      maxLat >= -90 &&
+      maxLat <= 90 &&
       minLng <= maxLng &&
       minLat <= maxLat
     ) {
@@ -140,7 +147,7 @@ const copyToClipboard = async () => {
           <Copy v-else class="copy-icon" :size="14" />
         </button>
       </div>
-      <div v-slot:default v-if="inputError" class="coords-error-text">
+      <div v-if="inputError" class="coords-error-text">
         Invalid format. Use: minLng, minLat, maxLng, maxLat
       </div>
     </div>
@@ -217,7 +224,9 @@ const copyToClipboard = async () => {
   border: 1px solid #333;
   border-radius: 4px;
   color: #fff;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 
 .coords-input:focus {
@@ -263,4 +272,3 @@ const copyToClipboard = async () => {
   color: #ff4444;
 }
 </style>
-

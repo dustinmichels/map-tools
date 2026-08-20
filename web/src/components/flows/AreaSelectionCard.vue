@@ -21,6 +21,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   back: [];
   selectCity: [payload: SelectedCity];
+  "update:bbox": [bbox: BBox];
 }>();
 </script>
 
@@ -41,7 +42,7 @@ const emit = defineEmits<{
         <div v-if="props.showCurrentArea" class="city-box area-current">
           <h4>Current area</h4>
           <div class="city-name">{{ props.cityName }}</div>
-          <BBoxCoords :bbox="props.bbox" />
+          <BBoxCoords :bbox="props.bbox" @update:bbox="emit('update:bbox', $event)" />
         </div>
       </div>
       <slot name="details" />

@@ -30,7 +30,6 @@ const props = withDefaults(
   },
 );
 
-
 const steps = [
   { number: 1, label: "Upload" },
   { number: 2, label: "Area" },
@@ -48,17 +47,31 @@ const uploadLibrary = useUploadedDatasets();
 const {
   frameDelayMs,
   routeColor,
+  flashColor,
   previewUrl,
   isPreparingPreview,
   isDownloading,
   exportError,
   statusMessage,
+  showCityName,
+  cityFont,
+  cityPosition,
+  cityNameOverlay,
   updateFrameDelayMs,
   updateRouteColor,
+  updateFlashColor,
   preparePreview,
   downloadGif,
   resetState,
 } = useRouteGifExport();
+
+watch(
+  cityName,
+  (newCity) => {
+    cityNameOverlay.value = newCity;
+  },
+  { immediate: true },
+);
 
 const displayRoutes = computed<RouteLayer[]>(() => [
   {
@@ -159,16 +172,19 @@ watch(geometryMode, () => {
   }
 });
 
-watch([routeColor, frameDelayMs], (_, __, onCleanup) => {
-  if (currentStep.value !== 4 || !hasAvailableRoutes.value || dataset.isFiltering.value) {
-    return;
-  }
+watch(
+  [routeColor, flashColor, frameDelayMs, showCityName, cityFont, cityPosition, cityNameOverlay],
+  (_, __, onCleanup) => {
+    if (currentStep.value !== 4 || !hasAvailableRoutes.value || dataset.isFiltering.value) {
+      return;
+    }
 
-  const timeoutId = window.setTimeout(() => {
-    void prepareRouteGifPreview();
-  }, 200);
-  onCleanup(() => window.clearTimeout(timeoutId));
-});
+    const timeoutId = window.setTimeout(() => {
+      void prepareRouteGifPreview();
+    }, 200);
+    onCleanup(() => window.clearTimeout(timeoutId));
+  },
+);
 
 onMounted(async () => {
   await uploadLibrary.loadUploads();
@@ -202,7 +218,9 @@ const nextButton = computed(() => {
     return {
       label: "Next: Prepare GIF",
       disabled:
-        dataset.isFiltering.value || dataset.filterError.value !== null || !hasAvailableRoutes.value,
+        dataset.isFiltering.value ||
+        dataset.filterError.value !== null ||
+        !hasAvailableRoutes.value,
       action: () => {
         currentStep.value = 4;
       },
@@ -211,7 +229,6 @@ const nextButton = computed(() => {
 
   return null;
 });
-
 
 const resetFlow = () => {
   currentStep.value = 1;
@@ -347,7 +364,7 @@ onUnmounted(() => {
       title="Step 2: Frame the map area"
       description="Search a city and drag the box around the routes you want to keep."
       :city-name="cityName"
-      :bbox="bbox"
+      v-model:bbox="bbox"
       @back="currentStep = 1"
       @select-city="handleSelectCity"
     >
@@ -424,12 +441,7 @@ onUnmounted(() => {
       </section>
 
       <div class="map-container-wrapper">
-        <MapView
-          v-model:bbox="bbox"
-          :center="center"
-          :show-b-box="false"
-          :routes="displayRoutes"
-        />
+        <MapView v-model:bbox="bbox" :center="center" :show-b-box="false" :routes="displayRoutes" />
       </div>
     </div>
 
@@ -455,11 +467,17 @@ onUnmounted(() => {
         :is-preparing-preview="isPreparingPreview"
         :is-downloading="isDownloading"
         :route-color="routeColor"
+        :flash-color="flashColor"
         :frame-delay-ms="frameDelayMs"
         :preview-url="previewUrl"
         :export-error="exportError"
         :status-message="statusMessage"
+        v-model:show-city-name="showCityName"
+        v-model:city-font="cityFont"
+        v-model:city-position="cityPosition"
+        v-model:city-name-overlay="cityNameOverlay"
         @update:route-color="updateRouteColor"
+        @update:flash-color="updateFlashColor"
         @update:frame-delay-ms="updateFrameDelayMs"
         @export="downloadRouteGif"
       />

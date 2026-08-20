@@ -28,7 +28,8 @@ const tools: WorkflowCard[] = [
     key: "viewer",
     eyebrow: "Single rider",
     title: "Viewer",
-    summary: "Open one saved upload, switch between simplified and original geometry, and inspect routes on hover.",
+    summary:
+      "Open one saved upload, switch between simplified and original geometry, and inspect routes on hover.",
     action: "Open",
     badges: ["1 upload", "geometry toggle", "route hover"],
   },
