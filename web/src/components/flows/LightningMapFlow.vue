@@ -144,6 +144,11 @@ watch(currentStep, (step) => {
   }
 
   if (step === 4 && hasAvailableRoutes.value && !dataset.isFiltering.value) {
+    const count = availableRouteCount.value;
+    if (count > 1) {
+      const defaultDelay = Math.round((12000 - 1200) / (count - 1));
+      updateFrameDelayMs(defaultDelay);
+    }
     void prepareRouteGifPreview();
   }
 });
@@ -206,6 +211,7 @@ const nextButton = computed(() => {
 
   return null;
 });
+
 
 const resetFlow = () => {
   currentStep.value = 1;

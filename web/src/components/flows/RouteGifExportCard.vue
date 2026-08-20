@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 
 const props = defineProps<{
   routeCount: number;
@@ -35,13 +35,102 @@ const downloadButtonLabel = computed(() =>
   props.isDownloading ? "Downloading GIF…" : "Download GIF",
 );
 
-const emitFrameDelay = (event: Event) => {
-  const nextValue = Number((event.target as HTMLInputElement).value);
-  if (!Number.isFinite(nextValue)) {
-    return;
-  }
+const isDelayFocused = ref(false);
+const isDurationFocused = ref(false);
 
-  emit("update:frameDelayMs", nextValue);
+const localFrameDelay = ref("");
+const localDuration = ref("");
+
+const formatDuration = (delay: number) => {
+  if (props.routeCount === 0) {
+    return "0";
+  }
+  if (props.routeCount === 1) {
+    return "1.2";
+  }
+  return (((props.routeCount - 1) * delay + 1200) / 1000).toFixed(1);
+};
+
+const syncFromProps = () => {
+  if (!isDelayFocused.value) {
+    localFrameDelay.value = props.frameDelayMs.toString();
+  }
+  if (!isDurationFocused.value) {
+    localDuration.value = formatDuration(props.frameDelayMs);
+  }
+};
+
+watch(() => props.frameDelayMs, syncFromProps, { immediate: true });
+watch(() => props.routeCount, syncFromProps);
+
+const onFrameDelayInput = (event: Event) => {
+  const rawValue = (event.target as HTMLInputElement).value;
+  localFrameDelay.value = rawValue;
+
+  const numericValue = Number(rawValue);
+  if (Number.isFinite(numericValue) && rawValue.trim() !== "") {
+    emit("update:frameDelayMs", numericValue);
+
+    if (!isDurationFocused.value) {
+      localDuration.value = formatDuration(numericValue);
+    }
+  }
+};
+
+const onFrameDelayFocus = () => {
+  isDelayFocused.value = true;
+};
+
+const onFrameDelayBlur = () => {
+  isDelayFocused.value = false;
+  syncFromProps();
+};
+
+const minDuration = computed(() => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+  if (props.routeCount === 1) {
+    return 1.2;
+  }
+  return Number((((props.routeCount - 1) * 20 + 1200) / 1000).toFixed(1));
+});
+
+const maxDuration = computed(() => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+  if (props.routeCount === 1) {
+    return 1.2;
+  }
+  return Number((((props.routeCount - 1) * 5000 + 1200) / 1000).toFixed(1));
+});
+
+const onDurationInput = (event: Event) => {
+  const rawValue = (event.target as HTMLInputElement).value;
+  localDuration.value = rawValue;
+
+  const numericValue = Number(rawValue);
+  if (Number.isFinite(numericValue) && numericValue > 0 && rawValue.trim() !== "") {
+    if (props.routeCount > 1) {
+      const calculatedDelay = (numericValue * 1000 - 1200) / (props.routeCount - 1);
+      const clampedDelay = Math.min(5000, Math.max(20, calculatedDelay));
+      emit("update:frameDelayMs", clampedDelay);
+
+      if (!isDelayFocused.value) {
+        localFrameDelay.value = Math.round(clampedDelay).toString();
+      }
+    }
+  }
+};
+
+const onDurationFocus = () => {
+  isDurationFocused.value = true;
+};
+
+const onDurationBlur = () => {
+  isDurationFocused.value = false;
+  syncFromProps();
 };
 
 const emitRouteColor = (event: Event) => {
@@ -96,10 +185,29 @@ const emitRouteColor = (event: Event) => {
           max="5000"
           step="5"
           :disabled="controlsDisabled"
-          :value="frameDelayMs"
-          @input="emitFrameDelay"
+          :value="localFrameDelay"
+          @input="onFrameDelayInput"
+          @focus="onFrameDelayFocus"
+          @blur="onFrameDelayBlur"
         />
         <span class="gif-field-help">Lower values add rides faster.</span>
+      </label>
+
+      <label class="gif-field">
+        <span class="gif-field-label">Total duration (s)</span>
+        <input
+          class="gif-field-input"
+          type="number"
+          :min="minDuration"
+          :max="maxDuration"
+          step="0.1"
+          :disabled="controlsDisabled || routeCount <= 1"
+          :value="localDuration"
+          @input="onDurationInput"
+          @focus="onDurationFocus"
+          @blur="onDurationBlur"
+        />
+        <span class="gif-field-help">Time to draw all routes.</span>
       </label>
     </div>
 

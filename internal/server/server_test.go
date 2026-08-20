@@ -408,6 +408,71 @@ func TestFilterUsesOriginalGeometryWhenRequested(t *testing.T) {
 	}
 }
 
+func TestFilterClipsMultilineGeometryToBBox(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	writeUploadActivityParquetWithParts(t, parquetPath, [][][2]float64{
+		{
+			{-71.1000, 42.3600},
+			{-71.0900, 42.3700},
+		},
+		{
+			{-71.3000, 42.5000},
+			{-71.2500, 42.5500},
+		},
+	})
+
+	router := apiRouter()
+	bbox := [4]float64{-71.1500, 42.3500, -71.0500, 42.4500}
+	body, err := json.Marshal(FilterRequest{SessionId: "legacy", BBox: &bbox, GeometryMode: "original"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/filter", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		respBody, _ := io.ReadAll(rr.Body)
+		t.Fatalf("filter failed with status %d: %s", rr.Code, respBody)
+	}
+
+	var geojson map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&geojson); err != nil {
+		t.Fatalf("decode filter geojson: %v", err)
+	}
+
+	features, ok := geojson["features"].([]any)
+	if !ok || len(features) != 1 {
+		t.Fatalf("expected one feature, got %v", geojson["features"])
+	}
+
+	feature, ok := features[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected feature object, got %T", features[0])
+	}
+
+	lineParts := decodeGeoJSONLineParts(t, feature["geometry"])
+	if len(lineParts) != 1 {
+		t.Fatalf("expected one clipped line part, got %d", len(lineParts))
+	}
+	if len(lineParts[0]) != 2 {
+		t.Fatalf("expected clipped line to keep 2 coordinates, got %d", len(lineParts[0]))
+	}
+
+	for index, coord := range lineParts[0] {
+		if coord[0] < bbox[0] || coord[0] > bbox[2] || coord[1] < bbox[1] || coord[1] > bbox[3] {
+			t.Fatalf("coordinate %d outside bbox: %v", index, coord)
+		}
+	}
+}
 
 func TestFilterCreatesSimplifiedCompanionOnDemand(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "uploads")
@@ -751,6 +816,32 @@ func writeUploadActivityParquet(t *testing.T, path string) {
 
 func writeUploadActivityParquetWithCoords(t *testing.T, path string, coords [][2]float64) {
 	t.Helper()
+	writeUploadActivityParquetWithGeometry(
+		t,
+		path,
+		`{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString"]}}}`,
+		strava.LineStringWKB(coords),
+	)
+}
+
+func writeUploadActivityParquetWithParts(t *testing.T, path string, parts [][][2]float64) {
+	t.Helper()
+
+	geometry := strava.MultiLineStringWKB(parts)
+	if len(parts) == 1 {
+		geometry = strava.LineStringWKB(parts[0])
+	}
+
+	writeUploadActivityParquetWithGeometry(
+		t,
+		path,
+		`{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString","MultiLineString"]}}}`,
+		geometry,
+	)
+}
+
+func writeUploadActivityParquetWithGeometry(t *testing.T, path, geoMetadata string, geometry []byte) {
+	t.Helper()
 
 	file, err := os.Create(path)
 	if err != nil {
@@ -758,7 +849,7 @@ func writeUploadActivityParquetWithCoords(t *testing.T, path string, coords [][2
 	}
 
 	writer := parquet.NewGenericWriter[strava.ActivityRow](file,
-		parquet.KeyValueMetadata("geo", `{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString"]}}}`),
+		parquet.KeyValueMetadata("geo", geoMetadata),
 	)
 	rows := []strava.ActivityRow{{
 		ActivityID:   99,
@@ -766,7 +857,7 @@ func writeUploadActivityParquetWithCoords(t *testing.T, path string, coords [][2
 		ActivityName: "Legacy Ride",
 		ActivityType: "Ride",
 		Filename:     "legacy.fit",
-		Geometry:     strava.LineStringWKB(coords),
+		Geometry:     geometry,
 	}}
 	if _, err := writer.Write(rows); err != nil {
 		_ = file.Close()
@@ -779,6 +870,61 @@ func writeUploadActivityParquetWithCoords(t *testing.T, path string, coords [][2
 	if err := file.Close(); err != nil {
 		t.Fatalf("close parquet %q: %v", path, err)
 	}
+}
+
+func decodeGeoJSONLineParts(t *testing.T, geometryValue any) [][][2]float64 {
+	t.Helper()
+
+	geometry, ok := geometryValue.(map[string]any)
+	if !ok {
+		t.Fatalf("expected geometry object, got %T", geometryValue)
+	}
+
+	switch geometry["type"] {
+	case "LineString":
+		return [][][2]float64{decodeGeoJSONLine(t, geometry["coordinates"])}
+	case "MultiLineString":
+		rawParts, ok := geometry["coordinates"].([]any)
+		if !ok {
+			t.Fatalf("expected multiline coordinates, got %T", geometry["coordinates"])
+		}
+
+		parts := make([][][2]float64, 0, len(rawParts))
+		for _, rawPart := range rawParts {
+			parts = append(parts, decodeGeoJSONLine(t, rawPart))
+		}
+		return parts
+	default:
+		t.Fatalf("expected line geometry, got %v", geometry["type"])
+		return nil
+	}
+}
+
+func decodeGeoJSONLine(t *testing.T, coordinatesValue any) [][2]float64 {
+	t.Helper()
+
+	rawCoordinates, ok := coordinatesValue.([]any)
+	if !ok {
+		t.Fatalf("expected line coordinates, got %T", coordinatesValue)
+	}
+
+	coordinates := make([][2]float64, 0, len(rawCoordinates))
+	for _, rawCoordinate := range rawCoordinates {
+		pair, ok := rawCoordinate.([]any)
+		if !ok || len(pair) != 2 {
+			t.Fatalf("expected coordinate pair, got %T", rawCoordinate)
+		}
+
+		lng, lngOK := pair[0].(float64)
+		lat, latOK := pair[1].(float64)
+		if !lngOK || !latOK {
+			t.Fatalf("expected numeric coordinate pair, got %v", pair)
+		}
+
+		coordinates = append(coordinates, [2]float64{lng, lat})
+	}
+
+	return coordinates
 }
 
 func readUploadActivityRow(t *testing.T, path string) strava.ActivityRow {

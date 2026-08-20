@@ -345,16 +345,32 @@ type FilterRequest struct {
 	GeometryMode string      `json:"geometryMode,omitempty"`
 }
 
+func buildBBoxEnvelope(bbox *[4]float64) string {
+	if bbox == nil {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"ST_MakeEnvelope(%f, %f, %f, %f)",
+		bbox[0], bbox[1], bbox[2], bbox[3],
+	)
+}
+
 func buildRideFilterWhereClause(bbox *[4]float64) string {
 	conditions := []string{"activity_type = 'Ride'"}
-	if bbox != nil {
-		conditions = append(conditions, fmt.Sprintf(
-			"ST_Intersects(geometry, ST_MakeEnvelope(%f, %f, %f, %f))",
-			bbox[0], bbox[1], bbox[2], bbox[3],
-		))
+	if bboxEnvelope := buildBBoxEnvelope(bbox); bboxEnvelope != "" {
+		conditions = append(conditions, fmt.Sprintf("ST_Intersects(geometry, %s)", bboxEnvelope))
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND ")
+}
+
+func buildRouteGeometrySelect(bbox *[4]float64) string {
+	if bboxEnvelope := buildBBoxEnvelope(bbox); bboxEnvelope != "" {
+		return fmt.Sprintf("ST_Intersection(geometry, %s) AS geometry", bboxEnvelope)
+	}
+
+	return "geometry"
 }
 
 func resolveFilterParquetPath(record uploadRecord, geometryMode string) (string, error) {
@@ -409,7 +425,7 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause)
+	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause, req.BBox)
 	if err != nil {
 		slog.Error("duckdb filter query failed", "err", err)
 		http.Error(w, fmt.Sprintf("filter query failed: %v", err), http.StatusInternalServerError)
@@ -421,7 +437,7 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(geoJSONData)
 }
 
-func exportGeoJSONFromParquet(parquetPath, whereClause string) ([]byte, error) {
+func exportGeoJSONFromParquet(parquetPath, whereClause string, bbox *[4]float64) ([]byte, error) {
 	outputFile, err := os.CreateTemp("", "maptools-output-*.geojson")
 	if err != nil {
 		return nil, err
@@ -446,10 +462,11 @@ COPY (
     activity_date,
     activity_name,
     activity_type,
-    geometry
+    %s
   FROM read_parquet('%s')
   %s
 ) TO '%s' WITH (FORMAT 'GDAL', DRIVER 'GeoJSON');`,
+		buildRouteGeometrySelect(bbox),
 		quoteDuckDBPath(parquetPath),
 		whereClause,
 		quoteDuckDBPath(outputGeoJSON),

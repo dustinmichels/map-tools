@@ -53,8 +53,8 @@ export interface UploadSummary {
   dataset: UploadedDataset;
 }
 
-export const DEFAULT_BOSTON_BBOX: BBox = [-71.1912, 42.2279, -70.9227, 42.3969];
-export const DEFAULT_BOSTON_CENTER: LngLat = [-71.0589, 42.3601];
+export const DEFAULT_BOSTON_BBOX: BBox = [-71.1912442, 42.2279149, -70.8044881, 42.3969775];
+export const DEFAULT_BOSTON_CENTER: LngLat = [-71.0578303, 42.3588336];
 export const EMPTY_FEATURE_COLLECTION: GeoJSONFeatureCollection = {
   type: "FeatureCollection",
   features: [],
