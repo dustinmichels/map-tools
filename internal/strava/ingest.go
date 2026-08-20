@@ -2,6 +2,7 @@ package strava
 
 import (
 	"archive/zip"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +18,9 @@ import (
 // geoMetadata is the GeoParquet file-level metadata value for the "geo" key.
 const geoMetadata = `{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString"]}}}`
 
+// simplifiedGeoMetadata allows simplified rows to split pauses into MultiLineString geometries.
+const simplifiedGeoMetadata = `{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString","MultiLineString"]}}}`
+
 // IngestResult holds counts of activities processed during ingest.
 type IngestResult struct {
 	Total     int
@@ -25,7 +29,8 @@ type IngestResult struct {
 }
 
 // IngestZip reads a Strava bulk-export zip, processes all supported GPS
-// activity formats (.fit.gz, .gpx), and writes a geoparquet file to outPath.
+// activity formats (.fit.gz, .gpx), and writes a geoparquet file to outPath
+// plus a companion simplified geoparquet file.
 // The zip is read in-place; no temporary extraction is performed.
 func IngestZip(zipPath, outPath string) (IngestResult, error) {
 	r, err := zip.OpenReader(zipPath)
@@ -34,13 +39,11 @@ func IngestZip(zipPath, outPath string) (IngestResult, error) {
 	}
 	defer r.Close()
 
-	// Build a name→file map for O(1) lookup.
 	fileMap := make(map[string]*zip.File, len(r.File))
 	for _, f := range r.File {
 		fileMap[f.Name] = f
 	}
 
-	// Locate activities.csv (may be under a single top-level directory).
 	var csvEntry *zip.File
 	for _, f := range r.File {
 		if filepath.Base(f.Name) == "activities.csv" {
@@ -52,7 +55,6 @@ func IngestZip(zipPath, outPath string) (IngestResult, error) {
 		return IngestResult{}, fmt.Errorf("activities.csv not found in %s", zipPath)
 	}
 
-	// The prefix is the directory path inside the zip, e.g. "strava_export/".
 	prefix := strings.TrimSuffix(csvEntry.Name, "activities.csv")
 
 	rc, err := csvEntry.Open()
@@ -65,7 +67,7 @@ func IngestZip(zipPath, outPath string) (IngestResult, error) {
 		return IngestResult{}, fmt.Errorf("parse activities.csv: %w", err)
 	}
 
-	opener := func(filename string) ([][2]float64, error) {
+	opener := func(filename string) ([]trackPoint, error) {
 		name := prefix + filename
 		zf, ok := fileMap[name]
 		if !ok {
@@ -83,7 +85,8 @@ func IngestZip(zipPath, outPath string) (IngestResult, error) {
 }
 
 // IngestDir reads an already-extracted Strava export directory and writes
-// a geoparquet file to outPath. Useful for faster iteration during development.
+// a geoparquet file to outPath plus a companion simplified geoparquet file.
+// Useful for faster iteration during development.
 func IngestDir(dir, outPath string) (IngestResult, error) {
 	f, err := os.Open(filepath.Join(dir, "activities.csv"))
 	if err != nil {
@@ -95,7 +98,7 @@ func IngestDir(dir, outPath string) (IngestResult, error) {
 		return IngestResult{}, fmt.Errorf("parse activities.csv: %w", err)
 	}
 
-	opener := func(filename string) ([][2]float64, error) {
+	opener := func(filename string) ([]trackPoint, error) {
 		path := filepath.Join(dir, filename)
 		f, err := os.Open(path)
 		if err != nil {
@@ -112,7 +115,7 @@ func IngestDir(dir, outPath string) (IngestResult, error) {
 // formats, parses tracks, and writes one geoparquet row per activity.
 func processActivities(
 	activities []Activity,
-	openTrack func(filename string) ([][2]float64, error),
+	openTrack func(filename string) ([]trackPoint, error),
 	outPath string,
 ) (IngestResult, error) {
 	var result IngestResult
@@ -123,8 +126,19 @@ func processActivities(
 		return result, fmt.Errorf("create %q: %w", outPath, err)
 	}
 	defer out.Close()
+
+	simplifiedOutPath := SimplifiedParquetPath(outPath)
+	simplifiedOut, err := os.Create(simplifiedOutPath)
+	if err != nil {
+		return result, fmt.Errorf("create %q: %w", simplifiedOutPath, err)
+	}
+	defer simplifiedOut.Close()
+
 	writer := parquet.NewGenericWriter[ActivityRow](out,
 		parquet.KeyValueMetadata("geo", geoMetadata),
+	)
+	simplifiedWriter := parquet.NewGenericWriter[ActivityRow](simplifiedOut,
+		parquet.KeyValueMetadata("geo", simplifiedGeoMetadata),
 	)
 
 	type job struct {
@@ -133,8 +147,9 @@ func processActivities(
 	}
 
 	type parseResult struct {
-		index int
-		row   *ActivityRow
+		index         int
+		row           *ActivityRow
+		simplifiedRow *ActivityRow
 	}
 
 	numWorkers := runtime.NumCPU()
@@ -164,27 +179,32 @@ func processActivities(
 		go func() {
 			defer wg.Done()
 			for j := range jobs {
-				coords, err := openTrack(*j.act.Filename)
+				points, err := openTrack(*j.act.Filename)
 				if err != nil {
 					slog.Warn("skipping: track read error", "id", j.act.ActivityID, "file", *j.act.Filename, "err", err)
 					results <- parseResult{index: j.index}
 					continue
 				}
 
-				wkb := LineStringWKB(coords)
+				wkb := LineStringWKB(trackPointsToCoords(points))
 				if wkb == nil {
 					slog.Warn("skipping: no GPS data", "id", j.act.ActivityID, "file", *j.act.Filename)
 					results <- parseResult{index: j.index}
 					continue
 				}
 
+				simplifiedWKB := simplifiedGeometryWKB(points)
+				if simplifiedWKB == nil {
+					simplifiedWKB = wkb
+				}
+
 				row := activityToRow(j.act, wkb)
-				results <- parseResult{index: j.index, row: &row}
+				simplifiedRow := activityToRow(j.act, simplifiedWKB)
+				results <- parseResult{index: j.index, row: &row, simplifiedRow: &simplifiedRow}
 			}
 		}()
 	}
 
-	// Feed jobs
 	for i, act := range activities {
 		if act.Filename == nil || !isSupportedTrack(*act.Filename) {
 			continue
@@ -193,31 +213,44 @@ func processActivities(
 	}
 	close(jobs)
 
-	// Wait for workers to finish and close results channel
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
 	parsedRows := make([]*ActivityRow, len(activities))
+	simplifiedRows := make([]*ActivityRow, len(activities))
 	var skipped int
 	for res := range results {
 		if res.row != nil {
 			parsedRows[res.index] = res.row
+			simplifiedRows[res.index] = res.simplifiedRow
 		} else {
 			skipped++
 		}
 	}
 
 	var written int
-	for _, row := range parsedRows {
+	for i, row := range parsedRows {
 		if row == nil {
 			continue
 		}
 		if _, err := writer.Write([]ActivityRow{*row}); err != nil {
 			writer.Close()
+			simplifiedWriter.Close()
 			return result, fmt.Errorf("write row for activity %d: %w", row.ActivityID, err)
 		}
+
+		simplifiedRow := simplifiedRows[i]
+		if simplifiedRow == nil {
+			simplifiedRow = row
+		}
+		if _, err := simplifiedWriter.Write([]ActivityRow{*simplifiedRow}); err != nil {
+			writer.Close()
+			simplifiedWriter.Close()
+			return result, fmt.Errorf("write simplified row for activity %d: %w", row.ActivityID, err)
+		}
+
 		written++
 		if row.ActivityType == "Ride" {
 			result.RideCount++
@@ -225,7 +258,11 @@ func processActivities(
 	}
 
 	if err := writer.Close(); err != nil {
+		simplifiedWriter.Close()
 		return result, fmt.Errorf("close parquet writer: %w", err)
+	}
+	if err := simplifiedWriter.Close(); err != nil {
+		return result, fmt.Errorf("close simplified parquet writer: %w", err)
 	}
 
 	result.Parsed = written
@@ -234,6 +271,10 @@ func processActivities(
 		"path", outPath,
 		"rows", written,
 		"skipped", skipped,
+	)
+	slog.Info("simplified geoparquet written",
+		"path", simplifiedOutPath,
+		"rows", written,
 	)
 	return result, nil
 }
@@ -248,18 +289,33 @@ func isSupportedTrack(filename string) bool {
 }
 
 // routeTrack dispatches to the correct parser based on file extension.
-func routeTrack(filename string, r io.Reader) ([][2]float64, error) {
+func routeTrack(filename string, r io.Reader) ([]trackPoint, error) {
 	switch {
 	case strings.HasSuffix(filename, ".fit.gz"):
-		return ReadFITGZ(r)
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("gzip: %w", err)
+		}
+		defer gr.Close()
+		return readFITTrack(gr)
 	case strings.HasSuffix(filename, ".fit"):
-		return ReadFIT(r)
+		return readFITTrack(r)
 	case strings.HasSuffix(filename, ".gpx.gz"):
-		return ReadGPXGZ(r)
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("gzip: %w", err)
+		}
+		defer gr.Close()
+		return readGPXTrack(gr)
 	case strings.HasSuffix(filename, ".gpx"):
-		return ReadGPX(r)
+		return readGPXTrack(r)
 	case strings.HasSuffix(filename, ".tcx.gz"):
-		return ReadTCXGZ(r)
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, fmt.Errorf("gzip: %w", err)
+		}
+		defer gr.Close()
+		return readTCXTrack(gr)
 	default:
 		return nil, fmt.Errorf("unsupported track format: %s", filename)
 	}

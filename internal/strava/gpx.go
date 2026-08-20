@@ -23,8 +23,20 @@ func ReadGPXGZ(r io.Reader) ([][2]float64, error) {
 // ReadGPX parses a GPX file and returns [lon, lat] pairs (X, Y) for all
 // track points across all tracks and segments.
 func ReadGPX(r io.Reader) ([][2]float64, error) {
+	points, err := readGPXTrack(r)
+	if err != nil {
+		return nil, err
+	}
+	return trackPointsToCoords(points), nil
+}
+
+func readGPXTrack(r io.Reader) ([]trackPoint, error) {
+	type trackData struct {
+		Time string `xml:"time"`
+	}
+
 	dec := xml.NewDecoder(r)
-	var coords [][2]float64
+	points := make([]trackPoint, 0)
 
 	for {
 		tok, err := dec.Token()
@@ -56,10 +68,19 @@ func ReadGPX(r io.Reader) ([][2]float64, error) {
 				}
 			}
 		}
+
+		var data trackData
+		if err := dec.DecodeElement(&data, &se); err != nil {
+			return nil, fmt.Errorf("gpx track point: %w", err)
+		}
 		if hasLat && hasLon {
-			coords = append(coords, [2]float64{lon, lat}) // X=lon, Y=lat
+			points = append(points, trackPoint{
+				Lon:       lon,
+				Lat:       lat,
+				Timestamp: parseTrackTimestamp(data.Time),
+			})
 		}
 	}
 
-	return coords, nil
+	return points, nil
 }

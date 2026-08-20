@@ -190,10 +190,19 @@ func handleRenameUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	targetParquetPath := filepath.Join(targetDir, targetBaseName+".parquet")
+	targetSimplifiedPath := strava.SimplifiedParquetPath(targetParquetPath)
+	sourceSimplifiedPath := strava.SimplifiedParquetPath(record.parquetPath)
+	targetMetadataPath := uploadMetadataPath(targetParquetPath)
 	if targetParquetPath != record.parquetPath {
 		if _, err := os.Stat(targetParquetPath); err == nil {
 			http.Error(w, "a parquet file with that name already exists", http.StatusConflict)
 			return
+		}
+		if targetSimplifiedPath != sourceSimplifiedPath {
+			if _, err := os.Stat(targetSimplifiedPath); err == nil {
+				http.Error(w, "a simplified parquet file with that name already exists", http.StatusConflict)
+				return
+			}
 		}
 
 		if err := os.Rename(record.parquetPath, targetParquetPath); err != nil {
@@ -201,14 +210,19 @@ func handleRenameUpload(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "failed to rename upload", http.StatusInternalServerError)
 			return
 		}
-	}
-
-	targetMetadataPath := uploadMetadataPath(targetParquetPath)
-	if targetMetadataPath != record.metadataPath && fileExists(record.metadataPath) {
-		if err := os.Rename(record.metadataPath, targetMetadataPath); err != nil {
-			slog.Error("failed to rename upload metadata", "datasetId", datasetID, "err", err)
-			http.Error(w, "failed to rename upload metadata", http.StatusInternalServerError)
-			return
+		if targetSimplifiedPath != sourceSimplifiedPath && fileExists(sourceSimplifiedPath) {
+			if err := os.Rename(sourceSimplifiedPath, targetSimplifiedPath); err != nil {
+				slog.Error("failed to rename simplified parquet file", "datasetId", datasetID, "err", err)
+				http.Error(w, "failed to rename upload", http.StatusInternalServerError)
+				return
+			}
+		}
+		if targetMetadataPath != record.metadataPath && fileExists(record.metadataPath) {
+			if err := os.Rename(record.metadataPath, targetMetadataPath); err != nil {
+				slog.Error("failed to rename upload metadata", "datasetId", datasetID, "err", err)
+				http.Error(w, "failed to rename upload metadata", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
@@ -297,6 +311,11 @@ func handleDeleteUpload(w http.ResponseWriter, r *http.Request) {
 
 	if err := os.Remove(record.parquetPath); err != nil && !os.IsNotExist(err) {
 		slog.Error("failed to remove parquet file", "datasetId", datasetID, "err", err)
+		http.Error(w, "failed to delete upload", http.StatusInternalServerError)
+		return
+	}
+	if err := os.Remove(strava.SimplifiedParquetPath(record.parquetPath)); err != nil && !os.IsNotExist(err) {
+		slog.Error("failed to remove simplified parquet file", "datasetId", datasetID, "err", err)
 		http.Error(w, "failed to delete upload", http.StatusInternalServerError)
 		return
 	}
@@ -441,6 +460,7 @@ func processUploadedArchive(file io.Reader) (UploadResponse, error) {
 	_ = os.Remove(zipPath)
 	if err != nil {
 		_ = os.Remove(parquetPath)
+		_ = os.Remove(strava.SimplifiedParquetPath(parquetPath))
 		return UploadResponse{SessionID: sessionID}, err
 	}
 
@@ -537,7 +557,7 @@ func listUploadRecords() ([]uploadRecord, error) {
 		}
 
 		for _, entry := range entries {
-			if entry.IsDir() || filepath.Ext(entry.Name()) != ".parquet" {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".parquet" || isSimplifiedParquetPath(entry.Name()) {
 				continue
 			}
 
@@ -690,6 +710,11 @@ func writeUploadMetadata(path string, metadata uploadMetadata) error {
 
 func uploadMetadataPath(parquetPath string) string {
 	return strings.TrimSuffix(parquetPath, filepath.Ext(parquetPath)) + ".upload.json"
+}
+
+func isSimplifiedParquetPath(path string) bool {
+	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	return strings.HasSuffix(base, "_Simplified")
 }
 
 func quoteDuckDBPath(path string) string {

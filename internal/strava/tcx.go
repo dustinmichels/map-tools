@@ -22,16 +22,25 @@ func ReadTCXGZ(r io.Reader) ([][2]float64, error) {
 // ReadTCX parses a TCX file and returns [lon, lat] pairs (X, Y) for all
 // trackpoints that carry a <Position> element.
 func ReadTCX(r io.Reader) ([][2]float64, error) {
+	points, err := readTCXTrack(r)
+	if err != nil {
+		return nil, err
+	}
+	return trackPointsToCoords(points), nil
+}
+
+func readTCXTrack(r io.Reader) ([]trackPoint, error) {
 	type position struct {
 		Lat float64 `xml:"LatitudeDegrees"`
 		Lon float64 `xml:"LongitudeDegrees"`
 	}
 	type trackpoint struct {
 		Position *position `xml:"Position"`
+		Time     string    `xml:"Time"`
 	}
 
 	dec := xml.NewDecoder(r)
-	var coords [][2]float64
+	points := make([]trackPoint, 0)
 
 	for {
 		tok, err := dec.Token()
@@ -54,8 +63,13 @@ func ReadTCX(r io.Reader) ([][2]float64, error) {
 		if tp.Position == nil {
 			continue
 		}
-		coords = append(coords, [2]float64{tp.Position.Lon, tp.Position.Lat}) // X=lon, Y=lat
+
+		points = append(points, trackPoint{
+			Lon:       tp.Position.Lon,
+			Lat:       tp.Position.Lat,
+			Timestamp: parseTrackTimestamp(tp.Time),
+		})
 	}
 
-	return coords, nil
+	return points, nil
 }

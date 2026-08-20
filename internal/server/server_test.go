@@ -105,6 +105,11 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	simplifiedParquetPath := strava.SimplifiedParquetPath(parquetPath)
+	if err := os.WriteFile(simplifiedParquetPath, []byte("simplified"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
 	total := 12
 	parsed := 11
 	rideCount := 9
@@ -176,6 +181,10 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 		t.Fatalf("expected renamed display name to be Boston Routes, got %q", renamed.DisplayName)
 	}
 
+	renamedSimplifiedPath := strava.SimplifiedParquetPath(renamedParquetPath)
+	if _, err := os.Stat(renamedSimplifiedPath); err != nil {
+		t.Fatalf("expected renamed simplified parquet file to exist: %v", err)
+	}
 	openedPath := ""
 	restoreOpenUploadPath := openUploadPath
 	openUploadPath = func(path string) error {
@@ -210,6 +219,9 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 	}
 	if _, err := os.Stat(uploadMetadataPath(renamedParquetPath)); !os.IsNotExist(err) {
 		t.Fatalf("expected metadata file to be deleted, stat err = %v", err)
+	}
+	if _, err := os.Stat(renamedSimplifiedPath); !os.IsNotExist(err) {
+		t.Fatalf("expected simplified parquet file to be deleted, stat err = %v", err)
 	}
 }
 

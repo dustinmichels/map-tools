@@ -13,7 +13,11 @@ import (
 
 // ReadFIT parses a raw (uncompressed) FIT file and returns [lon, lat] pairs.
 func ReadFIT(r io.Reader) ([][2]float64, error) {
-	return readFIT(r)
+	points, err := readFITTrack(r)
+	if err != nil {
+		return nil, err
+	}
+	return trackPointsToCoords(points), nil
 }
 
 // ReadFITGZ decompresses a gzip stream then parses the FIT data inside.
@@ -25,10 +29,14 @@ func ReadFITGZ(r io.Reader) ([][2]float64, error) {
 	}
 	defer gr.Close()
 
-	return readFIT(gr)
+	points, err := readFITTrack(gr)
+	if err != nil {
+		return nil, err
+	}
+	return trackPointsToCoords(points), nil
 }
 
-func readFIT(r io.Reader) ([][2]float64, error) {
+func readFITTrack(r io.Reader) ([]trackPoint, error) {
 	dec := decoder.New(r)
 
 	fit, err := dec.Decode()
@@ -36,7 +44,7 @@ func readFIT(r io.Reader) ([][2]float64, error) {
 		return nil, fmt.Errorf("decode: %w", err)
 	}
 
-	var coords [][2]float64
+	points := make([]trackPoint, 0)
 	for i := range fit.Messages {
 		msg := &fit.Messages[i]
 		if msg.Num != typedef.MesgNumRecord {
@@ -48,7 +56,12 @@ func readFIT(r io.Reader) ([][2]float64, error) {
 		if math.IsNaN(lat) || math.IsNaN(lon) {
 			continue
 		}
-		coords = append(coords, [2]float64{lon, lat})
+
+		timestamp := rec.Timestamp
+		if !timestamp.IsZero() {
+			timestamp = timestamp.UTC()
+		}
+		points = append(points, trackPoint{Lon: lon, Lat: lat, Timestamp: timestamp})
 	}
-	return coords, nil
+	return points, nil
 }

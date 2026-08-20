@@ -30,6 +30,14 @@ func TestIngestZip(t *testing.T) {
 	if info.Size() == 0 {
 		t.Fatal("output file is empty")
 	}
+	simplifiedPath := strava.SimplifiedParquetPath(outputPath)
+	simplifiedInfo, err := os.Stat(simplifiedPath)
+	if err != nil {
+		t.Fatalf("simplified output file missing after ingest: %v", err)
+	}
+	if simplifiedInfo.Size() == 0 {
+		t.Fatal("simplified output file is empty")
+	}
 	t.Logf("wrote %s (%d bytes)", outputPath, info.Size())
 }
 
@@ -57,11 +65,30 @@ func TestIngestDir(t *testing.T) {
 		t.Fatalf("open parquet: %v", err)
 	}
 
+	simplifiedPath := strava.SimplifiedParquetPath(outputPath)
+	simplifiedFile, err := os.Open(simplifiedPath)
+	if err != nil {
+		t.Fatalf("simplified output file missing after ingest: %v", err)
+	}
+	defer simplifiedFile.Close()
+
+	simplifiedInfo, err := simplifiedFile.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	simplifiedParquet, err := parquet.OpenFile(simplifiedFile, simplifiedInfo.Size())
+	if err != nil {
+		t.Fatalf("open simplified parquet: %v", err)
+	}
+
 	// 944 .fit.gz + 208 .gpx + 12 .fit + 5 .gpx.gz + 3 .tcx.gz = 1172 total supported;
 	// 26 have no GPS data → expect 1146 rows.
 	const wantRows = 1146
 	if got := pf.NumRows(); got != wantRows {
 		t.Errorf("row count: got %d, want %d", got, wantRows)
+	}
+	if got := simplifiedParquet.NumRows(); got != wantRows {
+		t.Errorf("simplified row count: got %d, want %d", got, wantRows)
 	}
 	t.Logf("wrote %s (%d bytes, %d rows)", outputPath, info.Size(), pf.NumRows())
 }
