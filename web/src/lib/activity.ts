@@ -1,5 +1,6 @@
 export type BBox = [number, number, number, number];
 export type LngLat = [number, number];
+export type GeometryMode = "simplified" | "original";
 
 export type Geometry =
   | { type: "LineString"; coordinates: [number, number][] }

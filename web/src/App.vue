@@ -7,6 +7,7 @@ const router = useRouter();
 
 const activeTool = computed(() => {
   if (route.path === "/upload") return "upload";
+  if (route.path === "/viewer") return "viewer";
   if (route.path === "/lightning-map") return "lightning-map";
   if (route.path === "/compare") return "compare";
   return "home";
@@ -31,7 +32,7 @@ const onSelectTool = (tool: string) => {
 <template>
   <div class="app-layout">
     <header class="app-header">
-      <div class="header-main">
+      <div class="header-main" @click="router.push('/')">
         <div class="logo">🗺️</div>
         <div>
           <h1>Map Tools</h1>
@@ -129,6 +130,7 @@ code {
   display: flex;
   align-items: center;
   gap: 12px;
+  cursor: pointer;
 }
 
 .header-side {
@@ -195,14 +197,27 @@ code {
 
 .stepper {
   display: flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   background: #171717;
   border: 1px solid #2b2b2b;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border-radius: 10px;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
+}
+
+.steps-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stepper-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
 }
 
 .step-item {

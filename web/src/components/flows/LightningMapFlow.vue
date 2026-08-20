@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import AreaSelectionCard from "./AreaSelectionCard.vue";
 import DatasetUploadCard from "./DatasetUploadCard.vue";
 import FlowStepper from "./FlowStepper.vue";
+import MapView from "../MapView.vue";
 import UploadedDatasetList from "../uploads/UploadedDatasetList.vue";
 import { useActivityDataset } from "../../composables/useActivityDataset";
 import { useUploadedDatasets } from "../../composables/useUploadedDatasets";
@@ -10,12 +11,23 @@ import {
   DEFAULT_BOSTON_BBOX,
   DEFAULT_BOSTON_CENTER,
   type BBox,
+  type GeometryMode,
   type LngLat,
   type RouteLayer,
   type SelectedCity,
 } from "../../lib/activity";
 
-const MapView = defineAsyncComponent(() => import("../MapView.vue"));
+const props = withDefaults(
+  defineProps<{
+    toolTitle?: string;
+    routeId?: string;
+  }>(),
+  {
+    toolTitle: "Lightning Map",
+    routeId: "lightning-map",
+  },
+);
+
 
 const steps = [
   { number: 1, label: "Upload" },
@@ -28,17 +40,31 @@ const currentStep = ref(1);
 const cityName = ref("Boston, MA, USA");
 const bbox = ref<BBox>([...DEFAULT_BOSTON_BBOX]);
 const center = ref<LngLat>([...DEFAULT_BOSTON_CENTER]);
+const geometryMode = ref<GeometryMode>("simplified");
 const dataset = useActivityDataset();
 const uploadLibrary = useUploadedDatasets();
 
-const lightningRoutes = computed<RouteLayer[]>(() => [
+const displayRoutes = computed<RouteLayer[]>(() => [
   {
-    id: "lightning-map",
-    label: "Lightning Map",
+    id: props.routeId,
+    label: props.toolTitle,
     color: "#ff8c00",
     data: dataset.activitiesGeoJSON.value,
   },
 ]);
+const usingSimplifiedGeometry = computed(() => geometryMode.value === "simplified");
+const showSimplifyPrompt = computed(
+  () =>
+    usingSimplifiedGeometry.value &&
+    dataset.usingExistingDataset.value &&
+    dataset.activeDataset.value !== null &&
+    !dataset.activeDataset.value.hasSimplified,
+);
+const geometryModeDescription = computed(() =>
+  usingSimplifiedGeometry.value
+    ? "Simplified geometry removes extra points for faster redraws."
+    : "Original geometry keeps every recorded point from the saved dataset.",
+);
 
 const handleSelectCity = (payload: SelectedCity) => {
   cityName.value = payload.name;
@@ -53,13 +79,6 @@ const submitSelectedArchive = async () => {
   }
 };
 
-const needsSimplifiedGeometry = computed(
-  () =>
-    dataset.usingExistingDataset.value &&
-    dataset.activeDataset.value !== null &&
-    !dataset.activeDataset.value.hasSimplified,
-);
-
 const simplifySelectedUpload = async () => {
   const activeDataset = dataset.activeDataset.value;
   if (!activeDataset || activeDataset.hasSimplified) {
@@ -72,14 +91,60 @@ const simplifySelectedUpload = async () => {
   }
 };
 
+const loadMap = async (preserveResults = false) => {
+  await dataset.filterActivities({
+    bbox: bbox.value,
+    geometryMode: geometryMode.value,
+    preserveResults,
+  });
+};
+
 watch(currentStep, (step) => {
   if (step === 3 && dataset.readyToFilter.value) {
-    void dataset.filterActivities(bbox.value);
+    void loadMap();
   }
 });
 
-onMounted(() => {
-  void uploadLibrary.loadUploads();
+watch(geometryMode, () => {
+  if (currentStep.value >= 3 && dataset.readyToFilter.value) {
+    void loadMap(currentStep.value === 4);
+  }
+});
+
+onMounted(async () => {
+  await uploadLibrary.loadUploads();
+  if (uploadLibrary.uploads.value.length > 0 && !dataset.activeDataset.value) {
+    dataset.useExistingDataset(uploadLibrary.uploads.value[0]);
+  }
+});
+
+const nextButton = computed(() => {
+  if (currentStep.value === 1) {
+    return {
+      label: "Next: Frame area",
+      disabled: !dataset.uploadSuccess.value,
+      action: () => {
+        currentStep.value = 2;
+      },
+    };
+  } else if (currentStep.value === 2) {
+    return {
+      label: "Next: Build map",
+      disabled: false,
+      action: () => {
+        currentStep.value = 3;
+      },
+    };
+  } else if (currentStep.value === 3) {
+    return {
+      label: "Next: Open map",
+      disabled: dataset.activitiesCount.value === null || dataset.isFiltering.value,
+      action: () => {
+        currentStep.value = 4;
+      },
+    };
+  }
+  return null;
 });
 
 const resetFlow = () => {
@@ -87,13 +152,28 @@ const resetFlow = () => {
   cityName.value = "Boston, MA, USA";
   bbox.value = [...DEFAULT_BOSTON_BBOX];
   center.value = [...DEFAULT_BOSTON_CENTER];
+  geometryMode.value = "simplified";
   dataset.reset();
+  if (uploadLibrary.uploads.value.length > 0) {
+    dataset.useExistingDataset(uploadLibrary.uploads.value[0]);
+  }
 };
 </script>
 
 <template>
   <section class="flow-layout">
-    <FlowStepper :current-step="currentStep" :steps="steps" />
+    <FlowStepper :current-step="currentStep" :steps="steps">
+      <template #actions>
+        <button
+          v-if="nextButton"
+          class="btn btn-primary"
+          :disabled="nextButton.disabled"
+          @click="nextButton.action"
+        >
+          {{ nextButton.label }}
+        </button>
+      </template>
+    </FlowStepper>
 
     <div v-if="currentStep === 1" class="flow-layout">
       <DatasetUploadCard
@@ -125,12 +205,13 @@ const resetFlow = () => {
           />
         </template>
       </DatasetUploadCard>
-      <div v-if="needsSimplifiedGeometry" class="card simplify-prompt">
+      <div v-if="showSimplifyPrompt" class="card simplify-prompt">
         <div class="simplify-copy">
-          <h3>Simplify geometry before building the map</h3>
+          <h3>Simplify geometry for faster map loads</h3>
           <p>
-            {{ dataset.activeDataset.value?.displayName }} was saved before simplified geometry was
-            available. Create the simplified GeoParquet companion now so the lightning map uses it.
+            {{ dataset.activeDataset.value?.displayName }} does not have a simplified GeoParquet
+            companion yet. Build it now for the simplified view, or switch to original geometry in
+            the map viewer.
           </p>
         </div>
         <div class="simplify-actions">
@@ -150,15 +231,6 @@ const resetFlow = () => {
       <div v-if="uploadLibrary.error.value" class="error-banner">
         ⚠️ {{ uploadLibrary.error.value }}
       </div>
-      <div class="card-actions">
-        <button
-          class="btn btn-primary"
-          :disabled="!dataset.uploadSuccess.value"
-          @click="currentStep = 2"
-        >
-          Frame area
-        </button>
-      </div>
     </div>
 
     <AreaSelectionCard
@@ -167,9 +239,7 @@ const resetFlow = () => {
       description="Search a city and drag the box around the routes you want to keep."
       :city-name="cityName"
       :bbox="bbox"
-      next-label="Build map"
       @back="currentStep = 1"
-      @next="currentStep = 3"
       @select-city="handleSelectCity"
     >
       <MapView v-model:bbox="bbox" :center="center" :show-b-box="true" :routes="[]" />
@@ -188,7 +258,7 @@ const resetFlow = () => {
       <div v-else-if="dataset.filterError.value" class="error-banner">
         ⚠️ {{ dataset.filterError.value }}
         <div class="mt-4">
-          <button class="btn btn-primary" @click="dataset.filterActivities(bbox)">Retry</button>
+          <button class="btn btn-primary" @click="loadMap()">Retry</button>
         </div>
       </div>
 
@@ -212,23 +282,47 @@ const resetFlow = () => {
         >
           Back
         </button>
-        <button
-          class="btn btn-primary"
-          :disabled="dataset.activitiesCount.value === null || dataset.isFiltering.value"
-          @click="currentStep = 4"
-        >
-          Open map
-        </button>
       </div>
     </div>
 
     <div v-else class="card-group">
       <section class="card flow-card final-card">
-        <h2>Map preview</h2>
+        <h2>{{ props.toolTitle }} preview</h2>
         <p>
           Showing <strong>{{ dataset.activitiesCount.value }}</strong> rides from
-          <strong>{{ cityName }}</strong> in one route layer.
+          <strong>{{ cityName }}</strong> in one route layer using
+          <strong>{{ usingSimplifiedGeometry ? "simplified" : "original" }}</strong> geometry.
         </p>
+
+        <div class="geometry-panel">
+          <div class="geometry-panel-copy">
+            <span class="control-label">Geometry</span>
+            <div class="geometry-toggle" role="group" aria-label="Geometry mode">
+              <button
+                class="geometry-toggle-button"
+                :class="{ active: usingSimplifiedGeometry }"
+                :disabled="dataset.isFiltering.value"
+                @click="geometryMode = 'simplified'"
+              >
+                Simplified
+              </button>
+              <button
+                class="geometry-toggle-button"
+                :class="{ active: !usingSimplifiedGeometry }"
+                :disabled="dataset.isFiltering.value"
+                @click="geometryMode = 'original'"
+              >
+                Original
+              </button>
+            </div>
+            <p class="geometry-note">{{ geometryModeDescription }}</p>
+          </div>
+          <span v-if="dataset.isFiltering.value" class="geometry-status">Updating map…</span>
+        </div>
+
+        <div v-if="dataset.filterError.value" class="error-banner">
+          ⚠️ {{ dataset.filterError.value }}
+        </div>
 
         <div class="export-summary">
           <h4>Location</h4>
@@ -251,7 +345,7 @@ const resetFlow = () => {
           v-model:bbox="bbox"
           :center="center"
           :show-b-box="false"
-          :routes="lightningRoutes"
+          :routes="displayRoutes"
         />
       </div>
     </div>
@@ -303,5 +397,68 @@ const resetFlow = () => {
 .simplify-actions {
   display: flex;
   justify-content: flex-start;
+}
+
+.geometry-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #2f2f2f;
+  background: #181818;
+}
+
+.geometry-panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.geometry-toggle {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.geometry-toggle-button {
+  border: 1px solid #444;
+  background: #111;
+  color: #d0d0d0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+
+.geometry-toggle-button.active {
+  border-color: #ff9900;
+  background: rgba(255, 153, 0, 0.15);
+  color: #fff;
+}
+
+.geometry-toggle-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.geometry-note {
+  margin: 0;
+  color: #a8a8a8;
+  font-size: 0.92rem;
+}
+
+.geometry-status {
+  border: 1px solid #8a5a12;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 153, 0, 0.12);
+  color: #ffd180;
+  font-size: 0.82rem;
+  white-space: nowrap;
 }
 </style>

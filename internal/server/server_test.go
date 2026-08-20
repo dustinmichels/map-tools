@@ -305,6 +305,17 @@ func TestFilterPrefersSimplifiedCompanion(t *testing.T) {
 		t.Fatalf("expected feature object, got %T", features[0])
 	}
 
+	properties, ok := feature["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties object, got %T", feature["properties"])
+	}
+	if properties["route_id"] != float64(99) {
+		t.Fatalf("expected route_id 99, got %v", properties["route_id"])
+	}
+	if properties["route_date"] != "2026-08-19" {
+		t.Fatalf("expected route_date 2026-08-19, got %v", properties["route_date"])
+	}
+
 	geometry, ok := feature["geometry"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected geometry object, got %T", feature["geometry"])
@@ -316,6 +327,123 @@ func TestFilterPrefersSimplifiedCompanion(t *testing.T) {
 	}
 	if len(coordinates) != 2 {
 		t.Fatalf("expected filter to use simplified parquet coordinates, got %d points", len(coordinates))
+	}
+}
+func TestFilterUsesOriginalGeometryWhenRequested(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	writeUploadActivityParquetWithCoords(t, parquetPath, [][2]float64{
+		{-71.1000, 42.3600},
+		{-71.0999, 42.3601},
+		{-71.0998, 42.3602},
+		{-71.0997, 42.3603},
+		{-71.0996, 42.3604},
+		{-71.0995, 42.3605},
+	})
+
+	simplifiedPath := strava.SimplifiedParquetPath(parquetPath)
+	writeUploadActivityParquetWithCoords(t, simplifiedPath, [][2]float64{
+		{-71.1000, 42.3600},
+		{-71.0995, 42.3605},
+	})
+
+	router := apiRouter()
+	body, err := json.Marshal(FilterRequest{SessionId: "legacy", GeometryMode: "original"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/filter", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		respBody, _ := io.ReadAll(rr.Body)
+		t.Fatalf("filter failed with status %d: %s", rr.Code, respBody)
+	}
+
+	var geojson map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&geojson); err != nil {
+		t.Fatalf("decode filter geojson: %v", err)
+	}
+
+	features, ok := geojson["features"].([]any)
+	if !ok || len(features) != 1 {
+		t.Fatalf("expected one feature, got %v", geojson["features"])
+	}
+
+	feature, ok := features[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected feature object, got %T", features[0])
+	}
+
+	properties, ok := feature["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties object, got %T", feature["properties"])
+	}
+	if properties["route_id"] != float64(99) {
+		t.Fatalf("expected route_id 99, got %v", properties["route_id"])
+	}
+	if properties["route_date"] != "2026-08-19" {
+		t.Fatalf("expected route_date 2026-08-19, got %v", properties["route_date"])
+	}
+
+	geometry, ok := feature["geometry"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected geometry object, got %T", feature["geometry"])
+	}
+
+	coordinates, ok := geometry["coordinates"].([]any)
+	if !ok {
+		t.Fatalf("expected line string coordinates, got %T", geometry["coordinates"])
+	}
+	if len(coordinates) != 6 {
+		t.Fatalf("expected filter to use original parquet coordinates, got %d points", len(coordinates))
+	}
+}
+
+
+func TestFilterCreatesSimplifiedCompanionOnDemand(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	writeUploadActivityParquet(t, parquetPath)
+
+	router := apiRouter()
+	body, err := json.Marshal(FilterRequest{SessionId: "legacy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/filter", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		respBody, _ := io.ReadAll(rr.Body)
+		t.Fatalf("filter failed with status %d: %s", rr.Code, respBody)
+	}
+
+	simplifiedPath := strava.SimplifiedParquetPath(parquetPath)
+	if _, err := os.Stat(simplifiedPath); err != nil {
+		t.Fatalf("expected filter to create simplified parquet file: %v", err)
+	}
+
+	originalRow := readUploadActivityRow(t, parquetPath)
+	simplifiedRow := readUploadActivityRow(t, simplifiedPath)
+	if len(simplifiedRow.Geometry) >= len(originalRow.Geometry) {
+		t.Fatalf("expected on-demand simplified geometry to shrink, got original=%d simplified=%d", len(originalRow.Geometry), len(simplifiedRow.Geometry))
 	}
 }
 
@@ -568,6 +696,12 @@ func TestUploadAndFilter(t *testing.T) {
 
 			if properties["activity_type"] != "Ride" {
 				t.Fatalf("feature %d activity_type = %v, want Ride", index, properties["activity_type"])
+			}
+			if properties["route_id"] == nil {
+				t.Fatalf("feature %d route_id missing", index)
+			}
+			if properties["route_date"] == nil {
+				t.Fatalf("feature %d route_date missing", index)
 			}
 		}
 

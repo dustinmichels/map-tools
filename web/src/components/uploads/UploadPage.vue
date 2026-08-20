@@ -25,7 +25,6 @@ const uploadSummary = computed(() => {
   } locally.`;
 });
 
-const uploadBadges = ["Request the ZIP", "Process locally", "Reuse in every map"];
 const guideSteps = [
   "Log into Strava on your computer.",
   "Open Settings → My Account.",
@@ -84,60 +83,21 @@ onMounted(() => {
 
 <template>
   <section class="upload-page">
-    <header class="card hero-card upload-bar">
-      <div class="upload-bar-copy">
-        <span class="hero-kicker">Upload library</span>
-        <h2>Build the saved dataset library.</h2>
-        <p class="lead-text upload-copy">
-          Request a Strava bulk export, process the ZIP here, then reuse the saved GeoParquet in
-          Lightning Map or Compare.
-        </p>
-      </div>
-
-      <ul class="upload-badges" aria-label="Upload workflow summary">
-        <li v-for="badge in uploadBadges" :key="badge">{{ badge }}</li>
-      </ul>
-    </header>
-
-    <section class="upload-workbench">
-      <section class="card export-guide">
-        <div class="guide-head">
-          <div>
-            <span class="hero-kicker">Strava export</span>
-            <h3>Get the ZIP</h3>
-          </div>
-          <a
-            href="https://support.strava.com/en-us/articles/15401919-exporting-your-data-and-bulk-export"
-            target="_blank"
-            class="link"
-            >Open guide</a
-          >
-        </div>
-
-        <p class="guide-copy">
-          Request the archive in Strava, then download the ZIP from the email.
-        </p>
-
-        <ol class="guide-steps">
-          <li v-for="step in guideSteps" :key="step">{{ step }}</li>
-        </ol>
-      </section>
-
-      <BulkUploadCard
-        :selected-files="selectedFiles"
-        :is-uploading="isUploading"
-        :upload-error="uploadError"
-        :upload-summary="uploadSummary"
-        @select-files="setSelectedFiles"
-        @upload="uploadSelectedFiles"
-      />
-    </section>
+    <BulkUploadCard
+      :selected-files="selectedFiles"
+      :is-uploading="isUploading"
+      :upload-error="uploadError"
+      :upload-summary="uploadSummary"
+      @select-files="setSelectedFiles"
+      @upload="uploadSelectedFiles"
+    />
 
     <section class="card upload-library-card">
       <UploadedDatasetList
         title="Saved uploads"
         description="Rename, delete, open, and reuse the GeoParquet files stored in your local Map Tools library."
         :uploads="uploadLibrary.uploads.value"
+        :limit="3"
         :manageable="true"
         :openable="true"
         :busy-dataset-id="uploadLibrary.busyDatasetId.value"
@@ -147,6 +107,29 @@ onMounted(() => {
         @open="uploadLibrary.openUpload"
         @delete="uploadLibrary.deleteUpload"
       />
+    </section>
+
+    <section class="card export-guide">
+      <div class="guide-head">
+        <div>
+          <span class="hero-kicker">Strava export</span>
+          <h3>Get the ZIP</h3>
+        </div>
+        <a
+          href="https://support.strava.com/en-us/articles/15401919-exporting-your-data-and-bulk-export"
+          target="_blank"
+          class="link"
+          >Open guide</a
+        >
+      </div>
+
+      <p class="guide-copy">
+        Request the archive in Strava, then download the ZIP from the email.
+      </p>
+
+      <ol class="guide-steps">
+        <li v-for="step in guideSteps" :key="step">{{ step }}</li>
+      </ol>
     </section>
 
     <div v-if="uploadLibrary.error.value" class="error-banner">
@@ -162,56 +145,12 @@ onMounted(() => {
   gap: 16px;
 }
 
-.upload-bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 18px;
-  align-items: flex-start;
-}
-
-.upload-bar-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 720px;
-}
-
 .hero-kicker {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #ff9900;
-}
-
-.upload-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.upload-badges li {
-  border: 1px solid #333;
-  background: #202020;
-  border-radius: 999px;
-  padding: 6px 10px;
-  color: #c9c9c9;
-  font-size: 0.76rem;
-  line-height: 1;
-}
-
-.upload-copy {
-  margin: 0;
-}
-
-.upload-workbench {
-  display: grid;
-  grid-template-columns: minmax(260px, 300px) minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
 }
 
 .export-guide,
@@ -243,14 +182,7 @@ onMounted(() => {
   margin-top: 7px;
 }
 
-@media (max-width: 980px) {
-  .upload-workbench {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 720px) {
-  .upload-bar,
   .guide-head {
     flex-direction: column;
   }

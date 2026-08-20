@@ -15,6 +15,7 @@ const props = withDefaults(
     actionLabel?: string;
     showManageLink?: boolean;
     busyDatasetId?: string | null;
+    limit?: number;
   }>(),
   {
     description: "",
@@ -52,6 +53,15 @@ const sortedUploads = computed(() =>
     return sortDirection.value === "asc" ? delta : -delta;
   }),
 );
+
+const isExpanded = ref(false);
+
+const displayedUploads = computed(() => {
+  if (props.limit && !isExpanded.value) {
+    return sortedUploads.value.slice(0, props.limit);
+  }
+  return sortedUploads.value;
+});
 
 const startEditing = (upload: UploadedDataset) => {
   draftNames[upload.datasetId] = upload.displayName;
@@ -93,7 +103,7 @@ const submitRename = (datasetId: string) => {
 
     <div v-else class="upload-list">
       <article
-        v-for="upload in sortedUploads"
+        v-for="upload in displayedUploads"
         :key="upload.datasetId"
         class="upload-row"
         :class="{ selected: props.selectedDatasetId === upload.datasetId }"
@@ -193,6 +203,11 @@ const submitRename = (datasetId: string) => {
           </button>
         </div>
       </article>
+    </div>
+    <div v-if="props.limit && props.uploads.length > props.limit" class="show-more-container">
+      <button class="btn btn-secondary" @click="isExpanded = !isExpanded">
+        {{ isExpanded ? "Show less" : "Show more" }}
+      </button>
     </div>
 
     <p v-if="props.showManageLink && props.uploads.length" class="manage-link-copy">
@@ -359,6 +374,11 @@ const submitRename = (datasetId: string) => {
 .manage-link-copy {
   margin: 0;
   color: #888;
+}
+
+.show-more-container {
+  display: flex;
+  justify-content: center;
 }
 
 @media (max-width: 900px) {

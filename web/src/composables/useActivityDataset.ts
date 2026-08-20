@@ -2,12 +2,19 @@ import { computed, ref } from "vue";
 import type {
   BBox,
   GeoJSONFeatureCollection,
+  GeometryMode,
   UploadSummary,
   UploadedDataset,
 } from "../lib/activity";
 import { uploadArchive } from "../lib/uploads";
 
 const ZIP_ERROR_MESSAGE = "Please select a .zip archive.";
+
+interface FilterActivitiesOptions {
+  bbox?: BBox | null;
+  geometryMode?: GeometryMode;
+  preserveResults?: boolean;
+}
 
 export function useActivityDataset() {
   const selectedFile = ref<File | null>(null);
@@ -50,7 +57,7 @@ export function useActivityDataset() {
     rideCount.value = upload.rideCount ?? null;
     activeDataset.value = upload;
     usingExistingDataset.value = fromExisting;
-    uploadSuccess.value = !fromExisting || upload.hasSimplified;
+    uploadSuccess.value = true;
     clearFilterState();
   };
 
@@ -105,13 +112,23 @@ export function useActivityDataset() {
     applyUploadedDataset(upload, true);
   };
 
-  const filterActivities = async (bbox?: BBox | null) => {
+  const filterActivities = async (options: FilterActivitiesOptions = {}) => {
     if (!sessionId.value) {
       return;
     }
 
+    const {
+      bbox = null,
+      geometryMode = "simplified",
+      preserveResults = false,
+    } = options;
+
     isFiltering.value = true;
-    clearFilterState();
+    if (preserveResults) {
+      filterError.value = null;
+    } else {
+      clearFilterState();
+    }
 
     try {
       const res = await fetch("/api/filter", {
@@ -122,6 +139,7 @@ export function useActivityDataset() {
         body: JSON.stringify({
           sessionId: sessionId.value,
           ...(bbox ? { bbox } : {}),
+          geometryMode,
         }),
       });
 
@@ -131,6 +149,7 @@ export function useActivityDataset() {
       }
 
       const geoJSON = (await res.json()) as GeoJSONFeatureCollection;
+      filterError.value = null;
       activitiesGeoJSON.value = geoJSON;
       activitiesCount.value = geoJSON.features.length;
     } catch (error) {

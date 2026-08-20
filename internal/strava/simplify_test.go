@@ -10,6 +10,14 @@ import (
 	"github.com/parquet-go/parquet-go"
 )
 
+func TestSimplifiedParquetPathUsesDoubleUnderscoreLowercaseSuffix(t *testing.T) {
+	got := SimplifiedParquetPath(filepath.Join("tmp", "rides.parquet"))
+	want := filepath.Join("tmp", "rides__simplified.parquet")
+	if got != want {
+		t.Fatalf("expected simplified parquet path %q, got %q", want, got)
+	}
+}
+
 func TestSimplifyMapDataSplitsPauseAndCollapsesSlowCluster(t *testing.T) {
 	base := time.Date(2026, time.August, 19, 12, 0, 0, 0, time.UTC)
 	points := []trackPoint{

@@ -258,17 +258,15 @@ func handleSimplifyUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	simplifiedPath := strava.SimplifiedParquetPath(record.parquetPath)
-	if !fileExists(simplifiedPath) {
-		if err := strava.SimplifyParquet(record.parquetPath, simplifiedPath); err != nil {
-			slog.Error("failed to write simplified parquet file", "datasetId", datasetID, "parquetPath", record.parquetPath, "simplifiedPath", simplifiedPath, "err", err)
-			http.Error(w, "failed to simplify upload", http.StatusInternalServerError)
-			return
-		}
+	simplifiedPath, err := ensureSimplifiedUploadParquet(record)
+	if err != nil {
+		slog.Error("failed to write simplified parquet file", "datasetId", datasetID, "parquetPath", record.parquetPath, "simplifiedPath", strava.SimplifiedParquetPath(record.parquetPath), "err", err)
+		http.Error(w, "failed to simplify upload", http.StatusInternalServerError)
+		return
 	}
 
 	updated := record.dataset
-	updated.HasSimplified = true
+	updated.HasSimplified = fileExists(simplifiedPath)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(updated)
@@ -342,8 +340,9 @@ func handleDeleteUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 type FilterRequest struct {
-	SessionId string      `json:"sessionId"`
-	BBox      *[4]float64 `json:"bbox,omitempty"`
+	SessionId    string      `json:"sessionId"`
+	BBox         *[4]float64 `json:"bbox,omitempty"`
+	GeometryMode string      `json:"geometryMode,omitempty"`
 }
 
 func buildRideFilterWhereClause(bbox *[4]float64) string {
@@ -356,6 +355,14 @@ func buildRideFilterWhereClause(bbox *[4]float64) string {
 	}
 
 	return "WHERE " + strings.Join(conditions, " AND ")
+}
+
+func resolveFilterParquetPath(record uploadRecord, geometryMode string) (string, error) {
+	if geometryMode == "original" {
+		return record.parquetPath, nil
+	}
+
+	return ensureSimplifiedUploadParquet(record)
 }
 
 func handleFilter(w http.ResponseWriter, r *http.Request) {
@@ -381,10 +388,26 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("filtering activities with duckdb", "sessionId", req.SessionId, "bbox", req.BBox)
+	slog.Info(
+		"filtering activities with duckdb",
+		"sessionId", req.SessionId,
+		"bbox", req.BBox,
+		"geometryMode", req.GeometryMode,
+	)
 
 	whereClause := buildRideFilterWhereClause(req.BBox)
-	parquetPath := preferredUploadParquetPath(record)
+	parquetPath, err := resolveFilterParquetPath(record, req.GeometryMode)
+	if err != nil {
+		slog.Error(
+			"failed to prepare parquet for filter",
+			"sessionId", req.SessionId,
+			"geometryMode", req.GeometryMode,
+			"parquetPath", record.parquetPath,
+			"err", err,
+		)
+		http.Error(w, "failed to prepare geometry", http.StatusInternalServerError)
+		return
+	}
 
 	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause)
 	if err != nil {
@@ -416,7 +439,14 @@ func exportGeoJSONFromParquet(parquetPath, whereClause string) ([]byte, error) {
 LOAD spatial;
 SET geometry_always_xy = true;
 COPY (
-  SELECT activity_id, activity_date, activity_name, activity_type, geometry
+  SELECT
+    activity_id AS route_id,
+    activity_date AS route_date,
+    activity_id,
+    activity_date,
+    activity_name,
+    activity_type,
+    geometry
   FROM read_parquet('%s')
   %s
 ) TO '%s' WITH (FORMAT 'GDAL', DRIVER 'GeoJSON');`,
@@ -729,16 +759,20 @@ func uploadMetadataPath(parquetPath string) string {
 
 func isSimplifiedParquetPath(path string) bool {
 	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
-	return strings.HasSuffix(base, "_Simplified")
+	return strings.HasSuffix(base, "__simplified")
 }
 
-func preferredUploadParquetPath(record uploadRecord) string {
+func ensureSimplifiedUploadParquet(record uploadRecord) (string, error) {
 	simplifiedPath := strava.SimplifiedParquetPath(record.parquetPath)
 	if fileExists(simplifiedPath) {
-		return simplifiedPath
+		return simplifiedPath, nil
 	}
 
-	return record.parquetPath
+	if err := strava.SimplifyParquet(record.parquetPath, simplifiedPath); err != nil {
+		return "", err
+	}
+
+	return simplifiedPath, nil
 }
 
 func quoteDuckDBPath(path string) string {

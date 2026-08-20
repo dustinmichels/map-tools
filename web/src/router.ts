@@ -16,6 +16,15 @@ const routes = [
     component: UploadPage,
   },
   {
+    path: "/viewer",
+    name: "viewer",
+    component: LightningMapFlow,
+    props: {
+      toolTitle: "Viewer",
+      routeId: "viewer",
+    },
+  },
+  {
     path: "/lightning-map",
     name: "lightning-map",
     component: LightningMapFlow,

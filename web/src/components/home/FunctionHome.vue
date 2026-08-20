@@ -1,5 +1,5 @@
 <script setup lang="ts">
-type ToolKey = "lightning-map" | "compare" | "upload";
+type ToolKey = "viewer" | "lightning-map" | "compare" | "upload";
 
 interface WorkflowCard {
   key: ToolKey;
@@ -24,6 +24,14 @@ const uploadWorkflow: WorkflowCard = {
 };
 
 const tools: WorkflowCard[] = [
+  {
+    key: "viewer",
+    eyebrow: "Single rider",
+    title: "Viewer",
+    summary: "Open one saved upload, switch between simplified and original geometry, and inspect routes on hover.",
+    action: "Open",
+    badges: ["1 upload", "geometry toggle", "route hover"],
+  },
   {
     key: "lightning-map",
     eyebrow: "Single rider",
@@ -52,7 +60,7 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
         <span class="section-label">Map workbench</span>
         <h2>Pick the map function you need.</h2>
         <p class="lead-text home-copy">
-          Start in Uploads, then open the single-rider or compare flow.
+          Start in Uploads, then open the viewer, lightning, or compare flow.
         </p>
       </div>
 

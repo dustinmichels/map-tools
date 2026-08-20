@@ -32,7 +32,7 @@ type trackPoint struct {
 func SimplifiedParquetPath(parquetPath string) string {
 	ext := filepath.Ext(parquetPath)
 	base := strings.TrimSuffix(parquetPath, ext)
-	return base + "_Simplified" + ext
+	return base + "__simplified" + ext
 }
 
 func simplifyMapData(points []trackPoint) [][][2]float64 {

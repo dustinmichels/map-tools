@@ -10,21 +10,16 @@ const props = withDefaults(
     cityName: string;
     bbox: BBox;
     backLabel?: string;
-    nextLabel?: string;
-    nextDisabled?: boolean;
     showCurrentArea?: boolean;
   }>(),
   {
     backLabel: "Back",
-    nextLabel: "Next",
-    nextDisabled: false,
     showCurrentArea: true,
   },
 );
 
 const emit = defineEmits<{
   back: [];
-  next: [];
   selectCity: [payload: SelectedCity];
 }>();
 </script>
@@ -53,9 +48,6 @@ const emit = defineEmits<{
 
       <div class="card-actions mt-auto">
         <button class="btn btn-secondary" @click="emit('back')">{{ props.backLabel }}</button>
-        <button class="btn btn-primary" :disabled="props.nextDisabled" @click="emit('next')">
-          {{ props.nextLabel }}
-        </button>
       </div>
     </section>
 

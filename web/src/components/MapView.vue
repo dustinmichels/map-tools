@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { Loader2 } from "lucide-vue-next";
 import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
-import { AttributionControl, Map, Marker, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import {
+  AttributionControl,
+  Map as MapLibreMap,
+  Marker,
+  NavigationControl,
+  Popup,
+  setWorkerUrl,
+} from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import type { BBox, LngLat, RouteLayer } from "../lib/activity";
 import { EMPTY_FEATURE_COLLECTION } from "../lib/activity";
@@ -27,12 +34,25 @@ const emit = defineEmits<{
   (event: "update:bbox", bbox: BBox): void;
 }>();
 
+interface RouteHoverEvent {
+  lngLat: { lng: number; lat: number };
+  features?: Array<{ properties?: Record<string, unknown> }>;
+}
+
+interface RouteTooltipHandlers {
+  mouseenter: (event: RouteHoverEvent) => void;
+  mousemove: (event: RouteHoverEvent) => void;
+  mouseleave: () => void;
+}
+
 const mapContainer = ref<HTMLElement | null>(null);
-const map = shallowRef<Map | null>(null);
+const map = shallowRef<MapLibreMap | null>(null);
 const isDragging = ref(false);
 const mapReady = ref(false);
 const mapError = ref<string | null>(null);
 const renderedRouteIds = new Set<string>();
+const routeTooltipHandlers = new Map<string, RouteTooltipHandlers>();
+const routeTooltip = shallowRef<Popup | null>(null);
 let loadTimeout: ReturnType<typeof setTimeout> | null = null;
 let markers: {
   sw: Marker;
@@ -64,6 +84,125 @@ const getBBoxGeoJSON = (bboxValue: BBox) => {
 const routeSourceId = (routeId: string) => `route-source-${routeId}`;
 const routeLayerId = (routeId: string) => `route-layer-${routeId}`;
 
+const createTooltipRow = (label: string, value: string) => {
+  const row = document.createElement("div");
+  row.className = "route-tooltip-row";
+
+  const heading = document.createElement("span");
+  heading.className = "route-tooltip-label";
+  heading.textContent = label;
+
+  const content = document.createElement("span");
+  content.className = "route-tooltip-value";
+  content.textContent = value;
+
+  row.append(heading, content);
+  return row;
+};
+
+const tooltipValue = (
+  properties: Record<string, unknown> | undefined,
+  primaryKey: string,
+  fallbackKey?: string,
+) => {
+  if (!properties) {
+    return null;
+  }
+
+  const value = properties[primaryKey] ?? (fallbackKey ? properties[fallbackKey] : undefined);
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  return String(value);
+};
+
+const buildRouteTooltip = (properties: Record<string, unknown> | undefined) => {
+  const routeId = tooltipValue(properties, "route_id", "activity_id");
+  const routeDate = tooltipValue(properties, "route_date", "activity_date");
+  if (!routeId && !routeDate) {
+    return null;
+  }
+
+  const card = document.createElement("div");
+  card.className = "route-tooltip-card";
+  if (routeId) {
+    card.appendChild(createTooltipRow("Route", routeId));
+  }
+  if (routeDate) {
+    card.appendChild(createTooltipRow("Date", routeDate));
+  }
+  return card;
+};
+
+const hideRouteTooltip = () => {
+  routeTooltip.value?.remove();
+  if (map.value) {
+    map.value.getCanvas().style.cursor = "";
+  }
+};
+
+const showRouteTooltip = (event: RouteHoverEvent) => {
+  if (!map.value || !routeTooltip.value) {
+    return;
+  }
+
+  const feature = event.features?.[0];
+  const content = buildRouteTooltip(feature?.properties);
+  if (!content) {
+    hideRouteTooltip();
+    return;
+  }
+
+  map.value.getCanvas().style.cursor = "pointer";
+  routeTooltip.value.setDOMContent(content).setLngLat([event.lngLat.lng, event.lngLat.lat]).addTo(
+    map.value,
+  );
+};
+
+const detachRouteTooltip = (routeId: string) => {
+  if (!map.value) {
+    routeTooltipHandlers.delete(routeId);
+    return;
+  }
+
+  const handlers = routeTooltipHandlers.get(routeId);
+  if (!handlers) {
+    return;
+  }
+
+  const layerId = routeLayerId(routeId);
+  map.value.off("mouseenter", layerId, handlers.mouseenter);
+  map.value.off("mousemove", layerId, handlers.mousemove);
+  map.value.off("mouseleave", layerId, handlers.mouseleave);
+  routeTooltipHandlers.delete(routeId);
+  hideRouteTooltip();
+};
+
+const attachRouteTooltip = (routeId: string) => {
+  if (!map.value || routeTooltipHandlers.has(routeId)) {
+    return;
+  }
+
+  const layerId = routeLayerId(routeId);
+  const handlers: RouteTooltipHandlers = {
+    mouseenter: (event) => {
+      showRouteTooltip(event);
+    },
+    mousemove: (event) => {
+      showRouteTooltip(event);
+    },
+    mouseleave: () => {
+      hideRouteTooltip();
+    },
+  };
+
+  map.value.on("mouseenter", layerId, handlers.mouseenter);
+  map.value.on("mousemove", layerId, handlers.mousemove);
+  map.value.on("mouseleave", layerId, handlers.mouseleave);
+  routeTooltipHandlers.set(routeId, handlers);
+};
+
 const syncRoutes = () => {
   if (!map.value || !mapReady.value) {
     return;
@@ -90,29 +229,32 @@ const syncRoutes = () => {
 
     if (map.value.getLayer(layerId)) {
       map.value.setPaintProperty(layerId, "line-color", route.color);
-      continue;
+    } else {
+      map.value.addLayer({
+        id: layerId,
+        type: "line",
+        source: sourceId,
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+        },
+        paint: {
+          "line-color": route.color,
+          "line-width": 2.5,
+          "line-opacity": 0.95,
+        },
+      });
     }
 
-    map.value.addLayer({
-      id: layerId,
-      type: "line",
-      source: sourceId,
-      layout: {
-        "line-join": "round",
-        "line-cap": "round",
-      },
-      paint: {
-        "line-color": route.color,
-        "line-width": 2.5,
-        "line-opacity": 0.95,
-      },
-    });
+    attachRouteTooltip(route.id);
   }
 
   for (const routeId of renderedRouteIds) {
     if (nextRouteIds.has(routeId)) {
       continue;
     }
+
+    detachRouteTooltip(routeId);
 
     const layerId = routeLayerId(routeId);
     const sourceId = routeSourceId(routeId);
@@ -129,6 +271,7 @@ const syncRoutes = () => {
   for (const routeId of nextRouteIds) {
     renderedRouteIds.add(routeId);
   }
+  hideRouteTooltip();
 };
 
 const createMarkerEl = (label: string) => {
@@ -367,15 +510,24 @@ const initMap = () => {
     map.value.remove();
     map.value = null;
   }
+  routeTooltipHandlers.clear();
+  routeTooltip.value?.remove();
+  routeTooltip.value = null;
 
-  map.value = new Map({
-    container: mapContainer.value,
-    style: MAP_STYLE,
-    center: props.center,
-    zoom: 12,
-    attributionControl: false,
-  });
-
+  try {
+    map.value = new MapLibreMap({
+      container: mapContainer.value,
+      style: MAP_STYLE,
+      center: props.center,
+      zoom: 12,
+      attributionControl: false,
+    });
+  } catch (error) {
+    console.error("Failed to initialize MapLibre GL:", error);
+    mapError.value =
+      error instanceof Error ? error.message : "WebGL is not supported or failed to initialize.";
+    return;
+  }
   map.value.on("error", (event) => {
     console.error("MapLibre error:", event);
   });
@@ -391,6 +543,13 @@ const initMap = () => {
     if (!map.value) {
       return;
     }
+
+    routeTooltip.value = new Popup({
+      closeButton: false,
+      closeOnClick: false,
+      className: "route-tooltip-popup",
+      offset: 12,
+    });
 
     map.value.addSource("bbox-source", {
       type: "geojson",
@@ -460,8 +619,14 @@ onUnmounted(() => {
     clearTimeout(loadTimeout);
   }
 
+  hideRouteTooltip();
+  routeTooltipHandlers.clear();
+  routeTooltip.value?.remove();
+  routeTooltip.value = null;
+
   if (map.value) {
     map.value.remove();
+    map.value = null;
   }
 });
 </script>
@@ -601,6 +766,46 @@ onUnmounted(() => {
 .fit-btn:hover {
   background: #2a2a2a;
   border-color: #ff9900;
+}
+
+:deep(.route-tooltip-popup .maplibregl-popup-content) {
+  padding: 0;
+  border: 1px solid #333;
+  border-radius: 10px;
+  background: #111;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+}
+
+:deep(.route-tooltip-popup .maplibregl-popup-tip) {
+  border-top-color: #333;
+}
+
+:deep(.route-tooltip-card) {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 170px;
+  padding: 10px 12px;
+}
+
+:deep(.route-tooltip-row) {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+:deep(.route-tooltip-label) {
+  color: #9a9a9a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+:deep(.route-tooltip-value) {
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 :deep(.mapboxgl-marker) {

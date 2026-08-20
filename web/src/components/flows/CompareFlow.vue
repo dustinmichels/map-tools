@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import AreaSelectionCard from "./AreaSelectionCard.vue";
 import DatasetUploadCard from "./DatasetUploadCard.vue";
 import FlowStepper from "./FlowStepper.vue";
+import MapView from "../MapView.vue";
 import UploadedDatasetList from "../uploads/UploadedDatasetList.vue";
 import { useActivityDataset } from "../../composables/useActivityDataset";
 import { useUploadedDatasets } from "../../composables/useUploadedDatasets";
@@ -18,7 +19,6 @@ import {
   type SelectedCity,
 } from "../../lib/activity";
 
-const MapView = defineAsyncComponent(() => import("../MapView.vue"));
 
 const steps = [
   { number: 1, label: "Upload" },
@@ -137,8 +137,8 @@ const runCompare = async () => {
   const selectedBBox = compareAllRides.value ? null : bbox.value;
 
   await Promise.all([
-    personOne.filterActivities(selectedBBox),
-    personTwo.filterActivities(selectedBBox),
+    personOne.filterActivities({ bbox: selectedBBox }),
+    personTwo.filterActivities({ bbox: selectedBBox }),
   ]);
 };
 
@@ -148,8 +148,45 @@ watch(currentStep, (step) => {
   }
 });
 
-onMounted(() => {
-  void uploadLibrary.loadUploads();
+onMounted(async () => {
+  await uploadLibrary.loadUploads();
+  if (uploadLibrary.uploads.value.length > 0) {
+    if (!personOne.activeDataset.value) {
+      personOne.useExistingDataset(uploadLibrary.uploads.value[0]);
+    }
+    if (uploadLibrary.uploads.value.length > 1 && !personTwo.activeDataset.value) {
+      personTwo.useExistingDataset(uploadLibrary.uploads.value[1]);
+    }
+  }
+});
+
+const nextButton = computed(() => {
+  if (currentStep.value === 1) {
+    return {
+      label: "Next: Choose scope",
+      disabled: !hasBothUploads.value,
+      action: () => {
+        currentStep.value = 2;
+      },
+    };
+  } else if (currentStep.value === 2) {
+    return {
+      label: "Next: Build compare map",
+      disabled: false,
+      action: () => {
+        currentStep.value = 3;
+      },
+    };
+  } else if (currentStep.value === 3) {
+    return {
+      label: "Next: Open map",
+      disabled: !hasResults.value || isFiltering.value,
+      action: () => {
+        currentStep.value = 4;
+      },
+    };
+  }
+  return null;
 });
 
 const resetFlow = () => {
@@ -162,12 +199,29 @@ const resetFlow = () => {
   personTwoColor.value = "#2563eb";
   personOne.reset();
   personTwo.reset();
+  if (uploadLibrary.uploads.value.length > 0) {
+    personOne.useExistingDataset(uploadLibrary.uploads.value[0]);
+  }
+  if (uploadLibrary.uploads.value.length > 1) {
+    personTwo.useExistingDataset(uploadLibrary.uploads.value[1]);
+  }
 };
 </script>
 
 <template>
   <section class="flow-layout">
-    <FlowStepper :current-step="currentStep" :steps="steps" />
+    <FlowStepper :current-step="currentStep" :steps="steps">
+      <template #actions>
+        <button
+          v-if="nextButton"
+          class="btn btn-primary"
+          :disabled="nextButton.disabled"
+          @click="nextButton.action"
+        >
+          {{ nextButton.label }}
+        </button>
+      </template>
+    </FlowStepper>
 
     <div v-if="currentStep === 1" class="flow-layout">
       <div class="compare-upload-grid">
@@ -208,8 +262,8 @@ const resetFlow = () => {
             <div class="simplify-copy">
               <h3>Simplify Rider 1 geometry</h3>
               <p>
-                {{ personOne.activeDataset.value?.displayName }} needs a simplified GeoParquet
-                companion before this compare map can use it.
+                {{ personOne.activeDataset.value?.displayName }} can add a simplified GeoParquet
+                companion now to speed this compare map.
               </p>
             </div>
             <div class="simplify-actions">
@@ -267,8 +321,8 @@ const resetFlow = () => {
             <div class="simplify-copy">
               <h3>Simplify Rider 2 geometry</h3>
               <p>
-                {{ personTwo.activeDataset.value?.displayName }} needs a simplified GeoParquet
-                companion before this compare map can use it.
+                {{ personTwo.activeDataset.value?.displayName }} can add a simplified GeoParquet
+                companion now to speed this compare map.
               </p>
             </div>
             <div class="simplify-actions">
@@ -296,11 +350,6 @@ const resetFlow = () => {
 
       <p class="compare-note">Load both riders, then choose a shared box or compare every Ride.</p>
 
-      <div class="card-actions">
-        <button class="btn btn-primary" :disabled="!hasBothUploads" @click="currentStep = 2">
-          Choose scope
-        </button>
-      </div>
     </div>
 
     <AreaSelectionCard
@@ -310,9 +359,7 @@ const resetFlow = () => {
       :city-name="cityName"
       :bbox="bbox"
       :show-current-area="!compareAllRides"
-      next-label="Build compare map"
       @back="currentStep = 1"
-      @next="currentStep = 3"
       @select-city="handleSelectCity"
     >
       <template #details>
@@ -363,13 +410,6 @@ const resetFlow = () => {
       <div class="card-actions">
         <button class="btn btn-secondary" :disabled="isFiltering" @click="currentStep = 2">
           Back
-        </button>
-        <button
-          class="btn btn-primary"
-          :disabled="!hasResults || isFiltering"
-          @click="currentStep = 4"
-        >
-          Open map
         </button>
       </div>
     </div>
