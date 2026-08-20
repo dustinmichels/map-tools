@@ -139,6 +139,7 @@ const submitRename = (datasetId: string) => {
             class="rename-input"
             type="text"
             :disabled="props.busyDatasetId === upload.datasetId"
+            @keydown.enter="submitRename(upload.datasetId)"
           />
           <button
             class="btn btn-primary"

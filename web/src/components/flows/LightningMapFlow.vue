@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import AreaSelectionCard from "./AreaSelectionCard.vue";
 import DatasetUploadCard from "./DatasetUploadCard.vue";
 import FlowStepper from "./FlowStepper.vue";
+import RouteGifExportCard from "./RouteGifExportCard.vue";
 import MapView from "../MapView.vue";
 import UploadedDatasetList from "../uploads/UploadedDatasetList.vue";
 import { useActivityDataset } from "../../composables/useActivityDataset";
+import { useRouteGifExport } from "../../composables/useRouteGifExport";
 import { useUploadedDatasets } from "../../composables/useUploadedDatasets";
 import {
   DEFAULT_BOSTON_BBOX,
@@ -32,8 +34,8 @@ const props = withDefaults(
 const steps = [
   { number: 1, label: "Upload" },
   { number: 2, label: "Area" },
-  { number: 3, label: "Process" },
-  { number: 4, label: "Map" },
+  { number: 3, label: "Map" },
+  { number: 4, label: "Prepare GIF" },
 ];
 
 const currentStep = ref(1);
@@ -43,15 +45,31 @@ const center = ref<LngLat>([...DEFAULT_BOSTON_CENTER]);
 const geometryMode = ref<GeometryMode>("simplified");
 const dataset = useActivityDataset();
 const uploadLibrary = useUploadedDatasets();
+const {
+  frameDelayMs,
+  routeColor,
+  previewUrl,
+  isPreparingPreview,
+  isDownloading,
+  exportError,
+  statusMessage,
+  updateFrameDelayMs,
+  updateRouteColor,
+  preparePreview,
+  downloadGif,
+  resetState,
+} = useRouteGifExport();
 
 const displayRoutes = computed<RouteLayer[]>(() => [
   {
     id: props.routeId,
     label: props.toolTitle,
-    color: "#ff8c00",
+    color: routeColor.value,
     data: dataset.activitiesGeoJSON.value,
   },
 ]);
+const availableRouteCount = computed(() => dataset.activitiesGeoJSON.value?.features.length ?? 0);
+const hasAvailableRoutes = computed(() => availableRouteCount.value > 0);
 const usingSimplifiedGeometry = computed(() => geometryMode.value === "simplified");
 const showSimplifyPrompt = computed(
   () =>
@@ -99,16 +117,52 @@ const loadMap = async (preserveResults = false) => {
   });
 };
 
+const prepareRouteGifPreview = async () => {
+  await preparePreview({
+    geoJSON: dataset.activitiesGeoJSON.value,
+    bbox: bbox.value,
+    cityName: cityName.value,
+    routeLabel: props.toolTitle,
+    datasetName: dataset.activeDataset.value?.displayName ?? null,
+  });
+};
+
+const downloadRouteGif = async () => {
+  await downloadGif({
+    geoJSON: dataset.activitiesGeoJSON.value,
+    bbox: bbox.value,
+    cityName: cityName.value,
+    routeLabel: props.toolTitle,
+    datasetName: dataset.activeDataset.value?.displayName ?? null,
+  });
+};
+
 watch(currentStep, (step) => {
   if (step === 3 && dataset.readyToFilter.value) {
     void loadMap();
+    return;
+  }
+
+  if (step === 4 && hasAvailableRoutes.value && !dataset.isFiltering.value) {
+    void prepareRouteGifPreview();
   }
 });
 
 watch(geometryMode, () => {
   if (currentStep.value >= 3 && dataset.readyToFilter.value) {
-    void loadMap(currentStep.value === 4);
+    void loadMap(currentStep.value === 3);
   }
+});
+
+watch([routeColor, frameDelayMs], (_, __, onCleanup) => {
+  if (currentStep.value !== 4 || !hasAvailableRoutes.value || dataset.isFiltering.value) {
+    return;
+  }
+
+  const timeoutId = window.setTimeout(() => {
+    void prepareRouteGifPreview();
+  }, 200);
+  onCleanup(() => window.clearTimeout(timeoutId));
 });
 
 onMounted(async () => {
@@ -127,7 +181,9 @@ const nextButton = computed(() => {
         currentStep.value = 2;
       },
     };
-  } else if (currentStep.value === 2) {
+  }
+
+  if (currentStep.value === 2) {
     return {
       label: "Next: Build map",
       disabled: false,
@@ -135,15 +191,19 @@ const nextButton = computed(() => {
         currentStep.value = 3;
       },
     };
-  } else if (currentStep.value === 3) {
+  }
+
+  if (currentStep.value === 3) {
     return {
-      label: "Next: Open map",
-      disabled: dataset.activitiesCount.value === null || dataset.isFiltering.value,
+      label: "Next: Prepare GIF",
+      disabled:
+        dataset.isFiltering.value || dataset.filterError.value !== null || !hasAvailableRoutes.value,
       action: () => {
         currentStep.value = 4;
       },
     };
   }
+
   return null;
 });
 
@@ -154,10 +214,53 @@ const resetFlow = () => {
   center.value = [...DEFAULT_BOSTON_CENTER];
   geometryMode.value = "simplified";
   dataset.reset();
+  resetState();
   if (uploadLibrary.uploads.value.length > 0) {
     dataset.useExistingDataset(uploadLibrary.uploads.value[0]);
   }
 };
+
+const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (event.key === "Enter") {
+    const activeEl = document.activeElement as HTMLElement | null;
+    if (activeEl) {
+      if (activeEl.tagName === "TEXTAREA") {
+        return;
+      }
+      if (activeEl.tagName === "INPUT") {
+        const inputEl = activeEl as HTMLInputElement;
+        if (
+          inputEl.type === "text" ||
+          inputEl.type === "password" ||
+          inputEl.type === "email" ||
+          inputEl.type === "number"
+        ) {
+          if (activeEl.classList.contains("search-input")) {
+            const suggestionsList = document.querySelector(".suggestions-list");
+            if (suggestionsList) {
+              return;
+            }
+          } else {
+            return;
+          }
+        }
+      }
+    }
+
+    if (nextButton.value && !nextButton.value.disabled) {
+      event.preventDefault();
+      nextButton.value.action();
+    }
+  }
+};
+
+onMounted(() => {
+  window.addEventListener("keydown", handleGlobalKeydown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("keydown", handleGlobalKeydown);
+});
 </script>
 
 <template>
@@ -245,98 +348,72 @@ const resetFlow = () => {
       <MapView v-model:bbox="bbox" :center="center" :show-b-box="true" :routes="[]" />
     </AreaSelectionCard>
 
-    <div v-else-if="currentStep === 3" class="card flow-card text-center">
-      <h2>Step 3: Build the map</h2>
-      <p>Filtering saved rides inside the selected bounding box.</p>
-
-      <div v-if="dataset.isFiltering.value" class="processing-indicator">
-        <div class="processing-ring"></div>
-        <h3>Running the filter…</h3>
-        <p>Querying the saved dataset inside the selected area.</p>
-      </div>
-
-      <div v-else-if="dataset.filterError.value" class="error-banner">
-        ⚠️ {{ dataset.filterError.value }}
-        <div class="mt-4">
-          <button class="btn btn-primary" @click="loadMap()">Retry</button>
-        </div>
-      </div>
-
-      <div
-        v-else-if="dataset.activitiesCount.value !== null"
-        class="success-banner centered-banner"
-      >
-        <h3>Ready</h3>
-        <p class="lead-text compact-lead">
-          Found <strong>{{ dataset.activitiesCount.value }}</strong> rides in
-          <strong>{{ cityName }}</strong
-          >.
-        </p>
-      </div>
-
-      <div class="card-actions">
-        <button
-          class="btn btn-secondary"
-          :disabled="dataset.isFiltering.value"
-          @click="currentStep = 2"
-        >
-          Back
-        </button>
-      </div>
-    </div>
-
-    <div v-else class="card-group">
+    <div v-else-if="currentStep === 3" class="card-group">
       <section class="card flow-card final-card">
-        <h2>{{ props.toolTitle }} preview</h2>
-        <p>
-          Showing <strong>{{ dataset.activitiesCount.value }}</strong> rides from
-          <strong>{{ cityName }}</strong> in one route layer using
-          <strong>{{ usingSimplifiedGeometry ? "simplified" : "original" }}</strong> geometry.
-        </p>
+        <h2>{{ props.toolTitle }}</h2>
 
-        <div class="geometry-panel">
-          <div class="geometry-panel-copy">
-            <span class="control-label">Geometry</span>
-            <div class="geometry-toggle" role="group" aria-label="Geometry mode">
-              <button
-                class="geometry-toggle-button"
-                :class="{ active: usingSimplifiedGeometry }"
-                :disabled="dataset.isFiltering.value"
-                @click="geometryMode = 'simplified'"
-              >
-                Simplified
-              </button>
-              <button
-                class="geometry-toggle-button"
-                :class="{ active: !usingSimplifiedGeometry }"
-                :disabled="dataset.isFiltering.value"
-                @click="geometryMode = 'original'"
-              >
-                Original
-              </button>
-            </div>
-            <p class="geometry-note">{{ geometryModeDescription }}</p>
-          </div>
-          <span v-if="dataset.isFiltering.value" class="geometry-status">Updating map…</span>
+        <div v-if="dataset.isFiltering.value" class="processing-indicator">
+          <div class="processing-ring"></div>
+          <h3>Running the filter…</h3>
+          <p>Querying the saved dataset inside the selected area.</p>
         </div>
 
-        <div v-if="dataset.filterError.value" class="error-banner">
+        <div v-else-if="dataset.filterError.value" class="error-banner">
           ⚠️ {{ dataset.filterError.value }}
+          <div class="mt-4">
+            <button class="btn btn-primary" @click="loadMap()">Retry</button>
+          </div>
         </div>
 
-        <div class="export-summary">
-          <h4>Location</h4>
-          <p>{{ cityName }}</p>
-          <h4>Bounding Box</h4>
-          <code class="block"
-            >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
-            {{ bbox[3].toFixed(4) }}</code
-          >
-        </div>
+        <template v-else>
+          <p>
+            Showing <strong>{{ dataset.activitiesCount.value }}</strong> rides from
+            <strong>{{ cityName }}</strong> in one route layer using
+            <strong>{{ usingSimplifiedGeometry ? "simplified" : "original" }}</strong> geometry.
+          </p>
+
+          <div class="geometry-panel">
+            <div class="geometry-panel-copy">
+              <span class="control-label">Geometry</span>
+              <div class="geometry-toggle" role="group" aria-label="Geometry mode">
+                <button
+                  class="geometry-toggle-button"
+                  :class="{ active: usingSimplifiedGeometry }"
+                  :disabled="dataset.isFiltering.value"
+                  @click="geometryMode = 'simplified'"
+                >
+                  Simplified
+                </button>
+                <button
+                  class="geometry-toggle-button"
+                  :class="{ active: !usingSimplifiedGeometry }"
+                  :disabled="dataset.isFiltering.value"
+                  @click="geometryMode = 'original'"
+                >
+                  Original
+                </button>
+              </div>
+              <p class="geometry-note">{{ geometryModeDescription }}</p>
+            </div>
+            <span v-if="dataset.isFiltering.value" class="geometry-status">Updating map…</span>
+          </div>
+
+          <div class="export-summary">
+            <h4>Location</h4>
+            <p>{{ cityName }}</p>
+            <h4>Bounding Box</h4>
+            <code class="block"
+              >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
+              {{ bbox[3].toFixed(4) }}</code
+            >
+          </div>
+        </template>
 
         <div class="card-actions mt-auto">
-          <button class="btn btn-secondary" @click="currentStep = 3">Back</button>
-          <button class="btn btn-secondary" @click="resetFlow">Start over</button>
+          <button class="btn btn-secondary" @click="currentStep = 2">Back</button>
+          <button v-if="!dataset.isFiltering.value" class="btn btn-secondary" @click="resetFlow">
+            Start over
+          </button>
         </div>
       </section>
 
@@ -349,6 +426,43 @@ const resetFlow = () => {
         />
       </div>
     </div>
+
+    <section v-else class="card flow-card final-card">
+      <h2>Prepare GIF</h2>
+      <p>
+        Preview the cumulative route animation, tune the line styling, then download the final GIF.
+      </p>
+
+      <div class="export-summary">
+        <h4>Location</h4>
+        <p>{{ cityName }}</p>
+        <h4>Bounding Box</h4>
+        <code class="block"
+          >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
+          {{ bbox[3].toFixed(4) }}</code
+        >
+      </div>
+
+      <RouteGifExportCard
+        :route-count="availableRouteCount"
+        :is-filtering="dataset.isFiltering.value"
+        :is-preparing-preview="isPreparingPreview"
+        :is-downloading="isDownloading"
+        :route-color="routeColor"
+        :frame-delay-ms="frameDelayMs"
+        :preview-url="previewUrl"
+        :export-error="exportError"
+        :status-message="statusMessage"
+        @update:route-color="updateRouteColor"
+        @update:frame-delay-ms="updateFrameDelayMs"
+        @export="downloadRouteGif"
+      />
+
+      <div class="card-actions mt-auto">
+        <button class="btn btn-secondary" @click="currentStep = 3">Back</button>
+        <button class="btn btn-secondary" @click="resetFlow">Start over</button>
+      </div>
+    </section>
   </section>
 </template>
 

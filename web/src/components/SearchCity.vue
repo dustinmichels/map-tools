@@ -108,6 +108,13 @@ const selectSuggestion = (item: NominatimResult) => {
     lon: parseFloat(item.lon),
   });
 };
+const handleEnter = (event: KeyboardEvent) => {
+  if (suggestions.value.length > 0) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectSuggestion(suggestions.value[0]);
+  }
+};
 
 const clearInput = () => {
   latestRequestId += 1;
@@ -124,6 +131,7 @@ const clearInput = () => {
         type="text"
         placeholder="Type a city name (e.g. San Francisco, Amsterdam)..."
         class="search-input"
+        @keydown.enter="handleEnter"
       />
       <div class="input-actions">
         <span v-if="loading" class="spinner"></span>

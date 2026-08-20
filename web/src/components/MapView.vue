@@ -43,6 +43,7 @@ interface RouteTooltipHandlers {
   mouseenter: (event: RouteHoverEvent) => void;
   mousemove: (event: RouteHoverEvent) => void;
   mouseleave: () => void;
+  click: (event: RouteHoverEvent) => void;
 }
 
 const mapContainer = ref<HTMLElement | null>(null);
@@ -116,9 +117,42 @@ const tooltipValue = (
 
   return String(value);
 };
+const routeIdValue = (properties: Record<string, unknown> | undefined) =>
+  tooltipValue(properties, "route_id", "activity_id");
+
+const copyTextToClipboard = async (value: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.setAttribute("readonly", "true");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  textarea.style.pointerEvents = "none";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  const copied = document.execCommand("copy");
+  document.body.removeChild(textarea);
+  if (!copied) {
+    throw new Error("Clipboard copy failed.");
+  }
+};
+
+const copyRouteIdToClipboard = async (properties: Record<string, unknown> | undefined) => {
+  const routeId = routeIdValue(properties);
+  if (!routeId) {
+    return;
+  }
+
+  await copyTextToClipboard(routeId);
+};
 
 const buildRouteTooltip = (properties: Record<string, unknown> | undefined) => {
-  const routeId = tooltipValue(properties, "route_id", "activity_id");
+  const routeId = routeIdValue(properties);
   const routeDate = tooltipValue(properties, "route_date", "activity_date");
   if (!routeId && !routeDate) {
     return null;
@@ -175,6 +209,7 @@ const detachRouteTooltip = (routeId: string) => {
   map.value.off("mouseenter", layerId, handlers.mouseenter);
   map.value.off("mousemove", layerId, handlers.mousemove);
   map.value.off("mouseleave", layerId, handlers.mouseleave);
+  map.value.off("click", layerId, handlers.click);
   routeTooltipHandlers.delete(routeId);
   hideRouteTooltip();
 };
@@ -195,11 +230,18 @@ const attachRouteTooltip = (routeId: string) => {
     mouseleave: () => {
       hideRouteTooltip();
     },
+    click: (event) => {
+      showRouteTooltip(event);
+      void copyRouteIdToClipboard(event.features?.[0]?.properties).catch((error: unknown) => {
+        console.error("Failed to copy route ID:", error);
+      });
+    },
   };
 
   map.value.on("mouseenter", layerId, handlers.mouseenter);
   map.value.on("mousemove", layerId, handlers.mousemove);
   map.value.on("mouseleave", layerId, handlers.mouseleave);
+  map.value.on("click", layerId, handlers.click);
   routeTooltipHandlers.set(routeId, handlers);
 };
 
