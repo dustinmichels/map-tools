@@ -47,6 +47,17 @@ export const renameUploadedDataset = async (datasetId: string, name: string) => 
 
   return (await res.json()) as UploadedDataset;
 };
+export const simplifyUploadedDataset = async (datasetId: string) => {
+  const res = await fetch(`/api/uploads/${encodeURIComponent(datasetId)}/simplify`, {
+    method: "POST",
+  });
+
+  if (!res.ok) {
+    throw new Error(await readError(res));
+  }
+
+  return (await res.json()) as UploadedDataset;
+};
 
 export const openUploadedDataset = async (datasetId: string) => {
   const res = await fetch(`/api/uploads/${encodeURIComponent(datasetId)}/open`, {

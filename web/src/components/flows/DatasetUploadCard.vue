@@ -101,7 +101,8 @@ const droppedFile = (event: DragEvent) => {
         Using {{ activeDatasetName ?? "the selected GeoParquet file" }} from the local library.
       </span>
       <span v-else>
-        Parsed {{ parsedCount }} / {{ totalCount }} activities and kept {{ rideCount }} rides.
+        Parsed {{ parsedCount }} / {{ totalCount }} activities, kept {{ rideCount }} rides, and
+        saved simplified geometry for map creation.
       </span>
     </div>
 

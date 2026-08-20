@@ -50,7 +50,7 @@ export function useActivityDataset() {
     rideCount.value = upload.rideCount ?? null;
     activeDataset.value = upload;
     usingExistingDataset.value = fromExisting;
-    uploadSuccess.value = true;
+    uploadSuccess.value = !fromExisting || upload.hasSimplified;
     clearFilterState();
   };
 

@@ -114,7 +114,9 @@ onMounted(() => {
           >
         </div>
 
-        <p class="guide-copy">Request the archive in Strava, then download the ZIP from the email.</p>
+        <p class="guide-copy">
+          Request the archive in Strava, then download the ZIP from the email.
+        </p>
 
         <ol class="guide-steps">
           <li v-for="step in guideSteps" :key="step">{{ step }}</li>
@@ -141,6 +143,7 @@ onMounted(() => {
         :busy-dataset-id="uploadLibrary.busyDatasetId.value"
         empty-message="No GeoParquet uploads found in the local library yet."
         @rename="uploadLibrary.renameUpload($event.datasetId, $event.name)"
+        @simplify="uploadLibrary.simplifyUpload"
         @open="uploadLibrary.openUpload"
         @delete="uploadLibrary.deleteUpload"
       />

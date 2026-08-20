@@ -12,26 +12,17 @@ run = "duckdb -c 'INSTALL spatial;'"
 
 [tasks.fmt]
 description = "Format all source code (oxfmt + gofmt)"
-run = [
-  "cd web && bunx oxfmt .",
-  "gofmt -w .",
-]
+run = ["cd web && bunx oxfmt .", "gofmt -w ."]
 
 [tasks.clean]
 description = "Remove build artifacts"
-run = [
-  "rm -rf bin/map-tools web/dist/*",
-  "touch web/dist/.gitkeep",
-]
+run = ["rm -rf bin/map-tools web/dist/*", "touch web/dist/.gitkeep"]
 
 # --- Build ---
 
 [tasks.web-build]
 description = "Build the Vue frontend"
-run = [
-  "cd web && bun run build",
-  "touch web/dist/.gitkeep",
-]
+run = ["cd web && bun run build", "touch web/dist/.gitkeep"]
 
 [tasks.build]
 description = "Compile frontend then embed into Go binary"
@@ -45,10 +36,6 @@ description = "Build and run the compiled binary"
 depends = ["build"]
 run = "./bin/map-tools"
 
-[tasks.run-test]
-description = "Build and run the compiled binary in test mode"
-depends = ["build"]
-run = "APP_ENV=test ./bin/map-tools"
 
 # --- Development ---
 
@@ -60,21 +47,11 @@ air &
 cd web && bun run dev
 """
 
-[tasks.dev-test]
-description = "Run backend and frontend dev servers concurrently in test mode"
-run = """
-trap 'kill 0' SIGINT SIGTERM EXIT
-APP_ENV=test air &
-cd web && bun run dev
-"""
 
 [tasks.dev-backend]
 description = "Start the Go server with live reload (requires air)"
 run = "air"
 
-[tasks.dev-backend-test]
-description = "Start the Go server in test mode with live reload (requires air)"
-run = "APP_ENV=test air"
 
 [tasks.dev-frontend]
 description = "Start the Vite dev server (proxies /api → :8080)"

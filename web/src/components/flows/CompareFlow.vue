@@ -108,6 +108,31 @@ const submitPersonTwoArchive = async () => {
   }
 };
 
+const personOneNeedsSimplifiedGeometry = computed(
+  () =>
+    personOne.usingExistingDataset.value &&
+    personOne.activeDataset.value !== null &&
+    !personOne.activeDataset.value.hasSimplified,
+);
+const personTwoNeedsSimplifiedGeometry = computed(
+  () =>
+    personTwo.usingExistingDataset.value &&
+    personTwo.activeDataset.value !== null &&
+    !personTwo.activeDataset.value.hasSimplified,
+);
+
+const simplifySelectedDataset = async (person: typeof personOne) => {
+  const activeDataset = person.activeDataset.value;
+  if (!activeDataset || activeDataset.hasSimplified) {
+    return;
+  }
+
+  const updatedUpload = await uploadLibrary.simplifyUpload(activeDataset.datasetId);
+  if (updatedUpload) {
+    person.useExistingDataset(updatedUpload);
+  }
+};
+
 const runCompare = async () => {
   const selectedBBox = compareAllRides.value ? null : bbox.value;
 
@@ -146,71 +171,123 @@ const resetFlow = () => {
 
     <div v-if="currentStep === 1" class="flow-layout">
       <div class="compare-upload-grid">
-        <DatasetUploadCard
-          title="Rider 1"
-          description="Pick a saved GeoParquet dataset or process the first Strava ZIP."
-          :selected-file="personOne.selectedFile.value"
-          :upload-error="personOne.uploadError.value"
-          :is-uploading="personOne.isUploading.value"
-          :upload-success="personOne.uploadSuccess.value"
-          :total-count="personOne.totalCount.value"
-          :parsed-count="personOne.parsedCount.value"
-          :ride-count="personOne.rideCount.value"
-          :active-dataset-name="personOne.activeDataset.value?.displayName ?? null"
-          :using-existing-dataset="personOne.usingExistingDataset.value"
-          :color="personOneColor"
-          color-label="Route color"
-          :show-color-picker="true"
-          @select-file="personOne.setSelectedFile"
-          @upload="submitPersonOneArchive"
-          @update-color="personOneColor = $event"
-        >
-          <template #sourceSelection>
-            <UploadedDatasetList
-              v-if="uploadLibrary.uploads.value.length"
-              title="Saved uploads"
-              description="Pick an existing dataset for Rider 1."
-              :uploads="uploadLibrary.uploads.value"
-              :selected-dataset-id="personOne.activeDataset.value?.datasetId ?? null"
-              :selectable="true"
-              action-label="Use upload"
-              @select="personOne.useExistingDataset"
-            />
-          </template>
-        </DatasetUploadCard>
-        <DatasetUploadCard
-          title="Rider 2"
-          description="Pick another saved dataset or process the second Strava ZIP."
-          :selected-file="personTwo.selectedFile.value"
-          :upload-error="personTwo.uploadError.value"
-          :is-uploading="personTwo.isUploading.value"
-          :upload-success="personTwo.uploadSuccess.value"
-          :total-count="personTwo.totalCount.value"
-          :parsed-count="personTwo.parsedCount.value"
-          :ride-count="personTwo.rideCount.value"
-          :active-dataset-name="personTwo.activeDataset.value?.displayName ?? null"
-          :using-existing-dataset="personTwo.usingExistingDataset.value"
-          :color="personTwoColor"
-          color-label="Route color"
-          :show-color-picker="true"
-          @select-file="personTwo.setSelectedFile"
-          @upload="submitPersonTwoArchive"
-          @update-color="personTwoColor = $event"
-        >
-          <template #sourceSelection>
-            <UploadedDatasetList
-              v-if="uploadLibrary.uploads.value.length"
-              title="Saved uploads"
-              description="Pick an existing dataset for Rider 2."
-              :uploads="uploadLibrary.uploads.value"
-              :selected-dataset-id="personTwo.activeDataset.value?.datasetId ?? null"
-              :selectable="true"
-              :show-manage-link="true"
-              action-label="Use upload"
-              @select="personTwo.useExistingDataset"
-            />
-          </template>
-        </DatasetUploadCard>
+        <div class="compare-upload-column">
+          <DatasetUploadCard
+            title="Rider 1"
+            description="Pick a saved GeoParquet dataset or process the first Strava ZIP."
+            :selected-file="personOne.selectedFile.value"
+            :upload-error="personOne.uploadError.value"
+            :is-uploading="personOne.isUploading.value"
+            :upload-success="personOne.uploadSuccess.value"
+            :total-count="personOne.totalCount.value"
+            :parsed-count="personOne.parsedCount.value"
+            :ride-count="personOne.rideCount.value"
+            :active-dataset-name="personOne.activeDataset.value?.displayName ?? null"
+            :using-existing-dataset="personOne.usingExistingDataset.value"
+            :color="personOneColor"
+            color-label="Route color"
+            :show-color-picker="true"
+            @select-file="personOne.setSelectedFile"
+            @upload="submitPersonOneArchive"
+            @update-color="personOneColor = $event"
+          >
+            <template #sourceSelection>
+              <UploadedDatasetList
+                v-if="uploadLibrary.uploads.value.length"
+                title="Saved uploads"
+                description="Pick an existing dataset for Rider 1."
+                :uploads="uploadLibrary.uploads.value"
+                :selected-dataset-id="personOne.activeDataset.value?.datasetId ?? null"
+                :selectable="true"
+                action-label="Use upload"
+                @select="personOne.useExistingDataset"
+              />
+            </template>
+          </DatasetUploadCard>
+          <div v-if="personOneNeedsSimplifiedGeometry" class="card simplify-prompt">
+            <div class="simplify-copy">
+              <h3>Simplify Rider 1 geometry</h3>
+              <p>
+                {{ personOne.activeDataset.value?.displayName }} needs a simplified GeoParquet
+                companion before this compare map can use it.
+              </p>
+            </div>
+            <div class="simplify-actions">
+              <button
+                class="btn btn-primary"
+                :disabled="
+                  uploadLibrary.busyDatasetId.value === personOne.activeDataset.value?.datasetId
+                "
+                @click="simplifySelectedDataset(personOne)"
+              >
+                {{
+                  uploadLibrary.busyDatasetId.value === personOne.activeDataset.value?.datasetId
+                    ? "Simplifying geometry…"
+                    : "Simplify geometry"
+                }}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="compare-upload-column">
+          <DatasetUploadCard
+            title="Rider 2"
+            description="Pick another saved dataset or process the second Strava ZIP."
+            :selected-file="personTwo.selectedFile.value"
+            :upload-error="personTwo.uploadError.value"
+            :is-uploading="personTwo.isUploading.value"
+            :upload-success="personTwo.uploadSuccess.value"
+            :total-count="personTwo.totalCount.value"
+            :parsed-count="personTwo.parsedCount.value"
+            :ride-count="personTwo.rideCount.value"
+            :active-dataset-name="personTwo.activeDataset.value?.displayName ?? null"
+            :using-existing-dataset="personTwo.usingExistingDataset.value"
+            :color="personTwoColor"
+            color-label="Route color"
+            :show-color-picker="true"
+            @select-file="personTwo.setSelectedFile"
+            @upload="submitPersonTwoArchive"
+            @update-color="personTwoColor = $event"
+          >
+            <template #sourceSelection>
+              <UploadedDatasetList
+                v-if="uploadLibrary.uploads.value.length"
+                title="Saved uploads"
+                description="Pick an existing dataset for Rider 2."
+                :uploads="uploadLibrary.uploads.value"
+                :selected-dataset-id="personTwo.activeDataset.value?.datasetId ?? null"
+                :selectable="true"
+                :show-manage-link="true"
+                action-label="Use upload"
+                @select="personTwo.useExistingDataset"
+              />
+            </template>
+          </DatasetUploadCard>
+          <div v-if="personTwoNeedsSimplifiedGeometry" class="card simplify-prompt">
+            <div class="simplify-copy">
+              <h3>Simplify Rider 2 geometry</h3>
+              <p>
+                {{ personTwo.activeDataset.value?.displayName }} needs a simplified GeoParquet
+                companion before this compare map can use it.
+              </p>
+            </div>
+            <div class="simplify-actions">
+              <button
+                class="btn btn-primary"
+                :disabled="
+                  uploadLibrary.busyDatasetId.value === personTwo.activeDataset.value?.datasetId
+                "
+                @click="simplifySelectedDataset(personTwo)"
+              >
+                {{
+                  uploadLibrary.busyDatasetId.value === personTwo.activeDataset.value?.datasetId
+                    ? "Simplifying geometry…"
+                    : "Simplify geometry"
+                }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div v-if="uploadLibrary.error.value" class="error-banner">
@@ -276,7 +353,10 @@ const resetFlow = () => {
         <p class="lead-text compact-lead">
           Found <strong>{{ totalComparedActivities }}</strong> total rides
           <template v-if="compareAllRides">across both uploaded datasets.</template>
-          <template v-else>in <strong>{{ cityName }}</strong>.</template>
+          <template v-else
+            >in <strong>{{ cityName }}</strong
+            >.</template
+          >
         </p>
       </div>
 
@@ -284,7 +364,11 @@ const resetFlow = () => {
         <button class="btn btn-secondary" :disabled="isFiltering" @click="currentStep = 2">
           Back
         </button>
-        <button class="btn btn-primary" :disabled="!hasResults || isFiltering" @click="currentStep = 4">
+        <button
+          class="btn btn-primary"
+          :disabled="!hasResults || isFiltering"
+          @click="currentStep = 4"
+        >
           Open map
         </button>
       </div>
@@ -296,7 +380,10 @@ const resetFlow = () => {
         <p>
           Overlaying <strong>{{ totalComparedActivities }}</strong> rides from both riders
           <template v-if="compareAllRides">across both uploaded datasets.</template>
-          <template v-else>inside <strong>{{ cityName }}</strong>.</template>
+          <template v-else
+            >inside <strong>{{ cityName }}</strong
+            >.</template
+          >
         </p>
 
         <div class="compare-legend">
@@ -347,7 +434,12 @@ const resetFlow = () => {
       </section>
 
       <div class="map-container-wrapper">
-        <MapView :bbox="compareMapBBox" :center="compareMapCenter" :show-b-box="false" :routes="compareRoutes" />
+        <MapView
+          :bbox="compareMapBBox"
+          :center="compareMapCenter"
+          :show-b-box="false"
+          :routes="compareRoutes"
+        />
       </div>
     </div>
   </section>
@@ -363,6 +455,12 @@ const resetFlow = () => {
 .compare-upload-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.compare-upload-column {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 
@@ -472,6 +570,38 @@ const resetFlow = () => {
 
 .compact-lead {
   margin-bottom: 0;
+}
+
+.simplify-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #8a5a12;
+  background: rgba(255, 153, 0, 0.1);
+}
+
+.simplify-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.simplify-copy h3,
+.simplify-copy p {
+  margin: 0;
+}
+
+.simplify-copy h3 {
+  color: #ffd180;
+}
+
+.simplify-copy p {
+  color: #ffcc80;
+}
+
+.simplify-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 
 @media (max-width: 900px) {

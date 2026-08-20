@@ -24,10 +24,10 @@ import (
 func apiRouter() http.Handler {
 	r := chi.NewRouter()
 	r.Get("/health", handleHealth)
-	r.Get("/map-test", handleMapTest)
 	r.Get("/uploads", handleListUploads)
 	r.Post("/upload", handleUpload)
 	r.Post("/uploads/{datasetId}/open", handleOpenUpload)
+	r.Post("/uploads/{datasetId}/simplify", handleSimplifyUpload)
 	r.Patch("/uploads/{datasetId}", handleRenameUpload)
 	r.Delete("/uploads/{datasetId}", handleDeleteUpload)
 	r.Post("/filter", handleFilter)
@@ -35,14 +35,15 @@ func apiRouter() http.Handler {
 }
 
 type UploadedDataset struct {
-	DatasetID   string    `json:"datasetId"`
-	FileName    string    `json:"fileName"`
-	DisplayName string    `json:"displayName"`
-	CreatedAt   time.Time `json:"createdAt"`
-	SizeBytes   int64     `json:"sizeBytes"`
-	Total       *int      `json:"total,omitempty"`
-	Parsed      *int      `json:"parsed,omitempty"`
-	RideCount   *int      `json:"rideCount,omitempty"`
+	DatasetID     string    `json:"datasetId"`
+	FileName      string    `json:"fileName"`
+	DisplayName   string    `json:"displayName"`
+	CreatedAt     time.Time `json:"createdAt"`
+	SizeBytes     int64     `json:"sizeBytes"`
+	HasSimplified bool      `json:"hasSimplified"`
+	Total         *int      `json:"total,omitempty"`
+	Parsed        *int      `json:"parsed,omitempty"`
+	RideCount     *int      `json:"rideCount,omitempty"`
 }
 
 type uploadMetadata struct {
@@ -82,31 +83,6 @@ type listUploadsResponse struct {
 
 type renameUploadRequest struct {
 	Name string `json:"name"`
-}
-
-func handleMapTest(w http.ResponseWriter, r *http.Request) {
-	if !isTestMode() {
-		http.NotFound(w, r)
-		return
-	}
-
-	parquetPath := "data/activities.parquet"
-	if !fileExists(parquetPath) {
-		slog.Error("map test parquet not found")
-		http.Error(w, "data/activities.parquet not found", http.StatusNotFound)
-		return
-	}
-
-	slog.Info("loading map test data", "parquetPath", parquetPath)
-	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, "WHERE geometry IS NOT NULL")
-	if err != nil {
-		slog.Error("map test export failed", "err", err)
-		http.Error(w, "failed to export map test data", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(geoJSONData)
 }
 
 func handleListUploads(w http.ResponseWriter, r *http.Request) {
@@ -248,15 +224,51 @@ func handleRenameUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updated := UploadedDataset{
-		DatasetID:   record.dataset.DatasetID,
-		FileName:    filepath.Base(targetParquetPath),
-		DisplayName: displayName,
-		CreatedAt:   record.dataset.CreatedAt,
-		SizeBytes:   info.Size(),
-		Total:       record.dataset.Total,
-		Parsed:      record.dataset.Parsed,
-		RideCount:   record.dataset.RideCount,
+		DatasetID:     record.dataset.DatasetID,
+		FileName:      filepath.Base(targetParquetPath),
+		DisplayName:   displayName,
+		CreatedAt:     record.dataset.CreatedAt,
+		SizeBytes:     info.Size(),
+		HasSimplified: fileExists(targetSimplifiedPath),
+		Total:         record.dataset.Total,
+		Parsed:        record.dataset.Parsed,
+		RideCount:     record.dataset.RideCount,
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(updated)
+}
+
+func handleSimplifyUpload(w http.ResponseWriter, r *http.Request) {
+	datasetID := strings.TrimSpace(chi.URLParam(r, "datasetId"))
+	if datasetID == "" {
+		http.Error(w, "datasetId is required", http.StatusBadRequest)
+		return
+	}
+
+	record, err := resolveUploadRecord(datasetID)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "upload not found", http.StatusNotFound)
+			return
+		}
+
+		slog.Error("failed to resolve upload for simplify", "datasetId", datasetID, "err", err)
+		http.Error(w, "failed to simplify upload", http.StatusInternalServerError)
+		return
+	}
+
+	simplifiedPath := strava.SimplifiedParquetPath(record.parquetPath)
+	if !fileExists(simplifiedPath) {
+		if err := strava.SimplifyParquet(record.parquetPath, simplifiedPath); err != nil {
+			slog.Error("failed to write simplified parquet file", "datasetId", datasetID, "parquetPath", record.parquetPath, "simplifiedPath", simplifiedPath, "err", err)
+			http.Error(w, "failed to simplify upload", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	updated := record.dataset
+	updated.HasSimplified = true
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(updated)
@@ -372,8 +384,9 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 	slog.Info("filtering activities with duckdb", "sessionId", req.SessionId, "bbox", req.BBox)
 
 	whereClause := buildRideFilterWhereClause(req.BBox)
+	parquetPath := preferredUploadParquetPath(record)
 
-	geoJSONData, err := exportGeoJSONFromParquet(record.parquetPath, whereClause)
+	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause)
 	if err != nil {
 		slog.Error("duckdb filter query failed", "err", err)
 		http.Error(w, fmt.Sprintf("filter query failed: %v", err), http.StatusInternalServerError)
@@ -494,14 +507,15 @@ func processUploadedArchive(file io.Reader) (UploadResponse, error) {
 		RideCount: res.RideCount,
 		Summary:   summary,
 		Dataset: UploadedDataset{
-			DatasetID:   sessionID,
-			FileName:    filepath.Base(parquetPath),
-			DisplayName: displayName,
-			CreatedAt:   createdAt,
-			SizeBytes:   info.Size(),
-			Total:       &total,
-			Parsed:      &parsed,
-			RideCount:   &rideCount,
+			DatasetID:     sessionID,
+			FileName:      filepath.Base(parquetPath),
+			DisplayName:   displayName,
+			CreatedAt:     createdAt,
+			SizeBytes:     info.Size(),
+			HasSimplified: fileExists(strava.SimplifiedParquetPath(parquetPath)),
+			Total:         &total,
+			Parsed:        &parsed,
+			RideCount:     &rideCount,
 		},
 	}, nil
 }
@@ -655,11 +669,12 @@ func buildUploadRecord(uploadDir string, entry os.DirEntry) (uploadRecord, error
 
 	record := uploadRecord{
 		dataset: UploadedDataset{
-			DatasetID:   strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
-			FileName:    entry.Name(),
-			DisplayName: strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
-			CreatedAt:   info.ModTime(),
-			SizeBytes:   info.Size(),
+			DatasetID:     strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
+			FileName:      entry.Name(),
+			DisplayName:   strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
+			CreatedAt:     info.ModTime(),
+			SizeBytes:     info.Size(),
+			HasSimplified: fileExists(strava.SimplifiedParquetPath(parquetPath)),
 		},
 		parquetPath:  parquetPath,
 		metadataPath: uploadMetadataPath(parquetPath),
@@ -715,6 +730,15 @@ func uploadMetadataPath(parquetPath string) string {
 func isSimplifiedParquetPath(path string) bool {
 	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	return strings.HasSuffix(base, "_Simplified")
+}
+
+func preferredUploadParquetPath(record uploadRecord) string {
+	simplifiedPath := strava.SimplifiedParquetPath(record.parquetPath)
+	if fileExists(simplifiedPath) {
+		return simplifiedPath
+	}
+
+	return record.parquetPath
 }
 
 func quoteDuckDBPath(path string) string {
@@ -810,10 +834,6 @@ type HealthResponse struct {
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(HealthResponse{Status: "ok"})
-}
-
-func isTestMode() bool {
-	return os.Getenv("APP_ENV") == "test" || os.Getenv("ENV") == "test" || os.Getenv("TEST_MODE") == "true"
 }
 
 func fileExists(path string) bool {

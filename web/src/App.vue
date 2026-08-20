@@ -29,10 +29,7 @@ const onSelectTool = (tool: string) => {
 </script>
 
 <template>
-  <div v-if="route.path === '/map-test'" class="map-test-wrapper">
-    <router-view />
-  </div>
-  <div v-else class="app-layout">
+  <div class="app-layout">
     <header class="app-header">
       <div class="header-main">
         <div class="logo">🗺️</div>

@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from "vue-router";
 import FunctionHome from "./components/home/FunctionHome.vue";
 import LightningMapFlow from "./components/flows/LightningMapFlow.vue";
 import CompareFlow from "./components/flows/CompareFlow.vue";
-import MapTest from "./components/MapTest.vue";
 import UploadPage from "./components/uploads/UploadPage.vue";
 
 const routes = [
@@ -29,11 +28,6 @@ const routes = [
     path: "/compare",
     name: "compare",
     component: CompareFlow,
-  },
-  {
-    path: "/map-test",
-    name: "map-test",
-    component: MapTest,
   },
 ];
 

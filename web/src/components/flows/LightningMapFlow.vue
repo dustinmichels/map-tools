@@ -53,6 +53,25 @@ const submitSelectedArchive = async () => {
   }
 };
 
+const needsSimplifiedGeometry = computed(
+  () =>
+    dataset.usingExistingDataset.value &&
+    dataset.activeDataset.value !== null &&
+    !dataset.activeDataset.value.hasSimplified,
+);
+
+const simplifySelectedUpload = async () => {
+  const activeDataset = dataset.activeDataset.value;
+  if (!activeDataset || activeDataset.hasSimplified) {
+    return;
+  }
+
+  const updatedUpload = await uploadLibrary.simplifyUpload(activeDataset.datasetId);
+  if (updatedUpload) {
+    dataset.useExistingDataset(updatedUpload);
+  }
+};
+
 watch(currentStep, (step) => {
   if (step === 3 && dataset.readyToFilter.value) {
     void dataset.filterActivities(bbox.value);
@@ -106,6 +125,28 @@ const resetFlow = () => {
           />
         </template>
       </DatasetUploadCard>
+      <div v-if="needsSimplifiedGeometry" class="card simplify-prompt">
+        <div class="simplify-copy">
+          <h3>Simplify geometry before building the map</h3>
+          <p>
+            {{ dataset.activeDataset.value?.displayName }} was saved before simplified geometry was
+            available. Create the simplified GeoParquet companion now so the lightning map uses it.
+          </p>
+        </div>
+        <div class="simplify-actions">
+          <button
+            class="btn btn-primary"
+            :disabled="uploadLibrary.busyDatasetId.value === dataset.activeDataset.value?.datasetId"
+            @click="simplifySelectedUpload"
+          >
+            {{
+              uploadLibrary.busyDatasetId.value === dataset.activeDataset.value?.datasetId
+                ? "Simplifying geometry…"
+                : "Simplify geometry"
+            }}
+          </button>
+        </div>
+      </div>
       <div v-if="uploadLibrary.error.value" class="error-banner">
         ⚠️ {{ uploadLibrary.error.value }}
       </div>
@@ -230,5 +271,37 @@ const resetFlow = () => {
 
 .compact-lead {
   margin-bottom: 0;
+}
+
+.simplify-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px solid #8a5a12;
+  background: rgba(255, 153, 0, 0.1);
+}
+
+.simplify-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.simplify-copy h3,
+.simplify-copy p {
+  margin: 0;
+}
+
+.simplify-copy h3 {
+  color: #ffd180;
+}
+
+.simplify-copy p {
+  color: #ffcc80;
+}
+
+.simplify-actions {
+  display: flex;
+  justify-content: flex-start;
 }
 </style>

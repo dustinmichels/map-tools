@@ -77,7 +77,10 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
           <li v-for="badge in uploadWorkflow.badges" :key="badge">{{ badge }}</li>
         </ul>
 
-        <button class="btn btn-primary action-button" @click="emit('selectTool', uploadWorkflow.key)">
+        <button
+          class="btn btn-primary action-button"
+          @click="emit('selectTool', uploadWorkflow.key)"
+        >
           {{ uploadWorkflow.action }}
         </button>
       </article>
@@ -99,7 +102,10 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
                   <span class="tool-eyebrow">{{ tool.eyebrow }}</span>
                   <h4>{{ tool.title }}</h4>
                 </div>
-                <button class="btn btn-primary workflow-action" @click="emit('selectTool', tool.key)">
+                <button
+                  class="btn btn-primary workflow-action"
+                  @click="emit('selectTool', tool.key)"
+                >
                   {{ tool.action }}
                 </button>
               </div>

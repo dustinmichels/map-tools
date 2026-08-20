@@ -38,6 +38,7 @@ export interface UploadedDataset {
   displayName: string;
   createdAt: string;
   sizeBytes: number;
+  hasSimplified: boolean;
   total?: number | null;
   parsed?: number | null;
   rideCount?: number | null;

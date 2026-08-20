@@ -5,6 +5,7 @@ import {
   listUploadedDatasets,
   openUploadedDataset,
   renameUploadedDataset,
+  simplifyUploadedDataset,
 } from "../lib/uploads";
 
 export function useUploadedDatasets() {
@@ -39,6 +40,24 @@ export function useUploadedDatasets() {
     } catch (err) {
       console.error(err);
       error.value = err instanceof Error ? err.message : "Failed to rename uploaded dataset.";
+    } finally {
+      busyDatasetId.value = null;
+    }
+  };
+  const simplifyUpload = async (datasetId: string) => {
+    busyDatasetId.value = datasetId;
+    error.value = null;
+
+    try {
+      const updatedUpload = await simplifyUploadedDataset(datasetId);
+      uploads.value = uploads.value.map((upload) =>
+        upload.datasetId === datasetId ? updatedUpload : upload,
+      );
+      return updatedUpload;
+    } catch (err) {
+      console.error(err);
+      error.value = err instanceof Error ? err.message : "Failed to simplify uploaded dataset.";
+      return null;
     } finally {
       busyDatasetId.value = null;
     }
@@ -80,6 +99,7 @@ export function useUploadedDatasets() {
     busyDatasetId,
     loadUploads,
     renameUpload,
+    simplifyUpload,
     openUpload,
     deleteUpload,
   };

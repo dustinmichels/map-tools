@@ -15,10 +15,6 @@ func spaHandler(fsys fs.FS) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Strip the leading slash; fs.FS paths are rooted without it.
 		path := strings.TrimPrefix(r.URL.Path, "/")
-		if strings.TrimSuffix(path, "/") == "map-test" && !isTestMode() {
-			http.NotFound(w, r)
-			return
-		}
 		if path == "" {
 			path = "."
 		}

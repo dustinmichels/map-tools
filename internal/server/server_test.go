@@ -11,10 +11,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"testing/fstest"
 	"time"
 
 	"github.com/dustinmichels/map-tools/internal/strava"
+	"github.com/parquet-go/parquet-go"
 )
 
 func TestHealth(t *testing.T) {
@@ -37,59 +37,6 @@ func TestHealth(t *testing.T) {
 	}
 	if len(resp) != 1 {
 		t.Errorf("expected health response to contain only status, got %v", resp)
-	}
-}
-
-func TestMapTestUnavailableOutsideTestMode(t *testing.T) {
-	t.Setenv("APP_ENV", "")
-	t.Setenv("ENV", "")
-	t.Setenv("TEST_MODE", "")
-
-	router := apiRouter()
-	req := httptest.NewRequest("GET", "/map-test", nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected status 404, got %d", rr.Code)
-	}
-}
-
-func TestSPARejectsMapTestOutsideTestMode(t *testing.T) {
-	t.Setenv("APP_ENV", "")
-	t.Setenv("ENV", "")
-	t.Setenv("TEST_MODE", "")
-
-	fsys := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("index")},
-	}
-	handler := spaHandler(fsys)
-
-	req := httptest.NewRequest("GET", "/map-test", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusNotFound {
-		t.Fatalf("expected status 404, got %d", rr.Code)
-	}
-}
-
-func TestSPAAllowsMapTestInTestMode(t *testing.T) {
-	t.Setenv("APP_ENV", "test")
-	t.Setenv("ENV", "")
-	t.Setenv("TEST_MODE", "")
-
-	fsys := fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("index")},
-	}
-	handler := spaHandler(fsys)
-
-	req := httptest.NewRequest("GET", "/map-test", nil)
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
 }
 
@@ -155,6 +102,10 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 		t.Fatalf("expected total %d, got %#v", total, upload.Total)
 	}
 
+	if !upload.HasSimplified {
+		t.Fatal("expected listed upload to report simplified companion")
+	}
+
 	renameBody := bytes.NewBufferString(`{"name":"Boston Routes"}`)
 	reqRename := httptest.NewRequest("PATCH", "/uploads/dataset-123", renameBody)
 	reqRename.Header.Set("Content-Type", "application/json")
@@ -179,6 +130,9 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 	}
 	if renamed.DisplayName != "Boston Routes" {
 		t.Fatalf("expected renamed display name to be Boston Routes, got %q", renamed.DisplayName)
+	}
+	if !renamed.HasSimplified {
+		t.Fatal("expected renamed upload to report simplified companion")
 	}
 
 	renamedSimplifiedPath := strava.SimplifiedParquetPath(renamedParquetPath)
@@ -225,6 +179,53 @@ func TestListRenameOpenAndDeleteUploads(t *testing.T) {
 	}
 }
 
+func TestSimplifyUploadCreatesCompanionParquet(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	writeUploadActivityParquet(t, parquetPath)
+
+	if err := writeUploadMetadata(uploadMetadataPath(parquetPath), uploadMetadata{
+		DatasetID:   "dataset-legacy",
+		DisplayName: "Legacy Upload",
+		CreatedAt:   time.Date(2026, time.August, 19, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	router := apiRouter()
+	req := httptest.NewRequest("POST", "/uploads/dataset-legacy/simplify", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected simplify status 200, got %d", rr.Code)
+	}
+
+	var simplified UploadedDataset
+	if err := json.NewDecoder(rr.Body).Decode(&simplified); err != nil {
+		t.Fatalf("failed to decode simplify response: %v", err)
+	}
+	if !simplified.HasSimplified {
+		t.Fatal("expected simplify response to report simplified companion")
+	}
+
+	simplifiedPath := strava.SimplifiedParquetPath(parquetPath)
+	if _, err := os.Stat(simplifiedPath); err != nil {
+		t.Fatalf("expected simplified parquet file to exist: %v", err)
+	}
+
+	originalRow := readUploadActivityRow(t, parquetPath)
+	simplifiedRow := readUploadActivityRow(t, simplifiedPath)
+	if len(simplifiedRow.Geometry) >= len(originalRow.Geometry) {
+		t.Fatalf("expected simplified geometry to shrink, got original=%d simplified=%d", len(originalRow.Geometry), len(simplifiedRow.Geometry))
+	}
+}
+
 func TestNextBulkUploadBaseNameAppendsDailySuffix(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "uploads")
 	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
@@ -250,6 +251,74 @@ func TestNextBulkUploadBaseNameAppendsDailySuffix(t *testing.T) {
 	}
 }
 
+func TestFilterPrefersSimplifiedCompanion(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	writeUploadActivityParquetWithCoords(t, parquetPath, [][2]float64{
+		{-71.1000, 42.3600},
+		{-71.0999, 42.3601},
+		{-71.0998, 42.3602},
+		{-71.0997, 42.3603},
+		{-71.0996, 42.3604},
+		{-71.0995, 42.3605},
+	})
+
+	simplifiedPath := strava.SimplifiedParquetPath(parquetPath)
+	writeUploadActivityParquetWithCoords(t, simplifiedPath, [][2]float64{
+		{-71.1000, 42.3600},
+		{-71.0995, 42.3605},
+	})
+
+	router := apiRouter()
+	body, err := json.Marshal(FilterRequest{SessionId: "legacy"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/filter", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		respBody, _ := io.ReadAll(rr.Body)
+		t.Fatalf("filter failed with status %d: %s", rr.Code, respBody)
+	}
+
+	var geojson map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&geojson); err != nil {
+		t.Fatalf("decode filter geojson: %v", err)
+	}
+
+	features, ok := geojson["features"].([]any)
+	if !ok || len(features) != 1 {
+		t.Fatalf("expected one feature, got %v", geojson["features"])
+	}
+
+	feature, ok := features[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected feature object, got %T", features[0])
+	}
+
+	geometry, ok := feature["geometry"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected geometry object, got %T", feature["geometry"])
+	}
+
+	coordinates, ok := geometry["coordinates"].([]any)
+	if !ok {
+		t.Fatalf("expected line string coordinates, got %T", geometry["coordinates"])
+	}
+	if len(coordinates) != 2 {
+		t.Fatalf("expected filter to use simplified parquet coordinates, got %d points", len(coordinates))
+	}
+}
+
 func TestUploadNamesBulkUploadsByDay(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "uploads")
 	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
@@ -269,6 +338,9 @@ func TestUploadNamesBulkUploadsByDay(t *testing.T) {
 			return strava.IngestResult{}, err
 		}
 		if err := os.WriteFile(outPath, []byte("parquet"), 0644); err != nil {
+			return strava.IngestResult{}, err
+		}
+		if err := os.WriteFile(strava.SimplifiedParquetPath(outPath), []byte("simplified"), 0644); err != nil {
 			return strava.IngestResult{}, err
 		}
 		return strava.IngestResult{Total: 2, Parsed: 2, RideCount: 1}, nil
@@ -323,6 +395,9 @@ func TestUploadNamesBulkUploadsByDay(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dataDir, first.Dataset.FileName)); err != nil {
 		t.Fatalf("expected first parquet file to exist: %v", err)
 	}
+	if !first.Dataset.HasSimplified {
+		t.Fatal("expected first upload to report simplified companion")
+	}
 
 	second := upload("strava-export-again.zip")
 	if second.Dataset.DisplayName != "bulk_upload_2026-08-19_2" {
@@ -334,6 +409,10 @@ func TestUploadNamesBulkUploadsByDay(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dataDir, second.Dataset.FileName)); err != nil {
 		t.Fatalf("expected second parquet file to exist: %v", err)
 	}
+	if !second.Dataset.HasSimplified {
+		t.Fatal("expected second upload to report simplified companion")
+	}
+
 }
 
 func TestUploadAndFilter(t *testing.T) {
@@ -407,6 +486,9 @@ func TestUploadAndFilter(t *testing.T) {
 	if dataset["fileName"] != "bulk_upload_2026-08-19.parquet" {
 		t.Fatalf("expected upload file name to be bulk_upload_2026-08-19.parquet, got %v", dataset["fileName"])
 	}
+	if dataset["hasSimplified"] != true {
+		t.Fatalf("expected upload to report simplified companion, got %v", dataset["hasSimplified"])
+	}
 
 	if uploadResp["total"] == nil || uploadResp["parsed"] == nil || uploadResp["rideCount"] == nil || uploadResp["summary"] == nil {
 		t.Errorf("missing statistics in upload response: %v", uploadResp)
@@ -432,10 +514,15 @@ func TestUploadAndFilter(t *testing.T) {
 	}
 
 	parquetPath := filepath.Join(dataDir, "bulk_upload_2026-08-19.parquet")
+	simplifiedParquetPath := strava.SimplifiedParquetPath(parquetPath)
 	defer os.Remove(parquetPath)
+	defer os.Remove(simplifiedParquetPath)
 	defer os.Remove(uploadMetadataPath(parquetPath))
 	if _, err := os.Stat(parquetPath); os.IsNotExist(err) {
 		t.Fatalf("expected parquet file to exist at %s, but it does not", parquetPath)
+	}
+	if _, err := os.Stat(simplifiedParquetPath); os.IsNotExist(err) {
+		t.Fatalf("expected simplified parquet file to exist at %s, but it does not", simplifiedParquetPath)
 	}
 
 	bbox := [4]float64{-71.1912, 42.2279, -70.9227, 42.3969}
@@ -516,6 +603,73 @@ func TestUploadAndFilter(t *testing.T) {
 	}
 }
 
+func writeUploadActivityParquet(t *testing.T, path string) {
+	t.Helper()
+	writeUploadActivityParquetWithCoords(t, path, [][2]float64{
+		{-71.1000, 42.3600},
+		{-71.0998, 42.3601},
+		{-71.0996, 42.3602},
+		{-71.0994, 42.3603},
+		{-71.0992, 42.3604},
+		{-71.0990, 42.3605},
+	})
+}
+
+func writeUploadActivityParquetWithCoords(t *testing.T, path string, coords [][2]float64) {
+	t.Helper()
+
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create parquet %q: %v", path, err)
+	}
+
+	writer := parquet.NewGenericWriter[strava.ActivityRow](file,
+		parquet.KeyValueMetadata("geo", `{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString"]}}}`),
+	)
+	rows := []strava.ActivityRow{{
+		ActivityID:   99,
+		ActivityDate: "2026-08-19",
+		ActivityName: "Legacy Ride",
+		ActivityType: "Ride",
+		Filename:     "legacy.fit",
+		Geometry:     strava.LineStringWKB(coords),
+	}}
+	if _, err := writer.Write(rows); err != nil {
+		_ = file.Close()
+		t.Fatalf("write parquet %q: %v", path, err)
+	}
+	if err := writer.Close(); err != nil {
+		_ = file.Close()
+		t.Fatalf("close parquet writer %q: %v", path, err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close parquet %q: %v", path, err)
+	}
+}
+
+func readUploadActivityRow(t *testing.T, path string) strava.ActivityRow {
+	t.Helper()
+
+	file, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open parquet %q: %v", path, err)
+	}
+	defer file.Close()
+
+	reader := parquet.NewGenericReader[strava.ActivityRow](file)
+	defer reader.Close()
+
+	rows := make([]strava.ActivityRow, 1)
+	n, err := reader.Read(rows)
+	if err != nil && err != io.EOF {
+		t.Fatalf("read parquet %q: %v", path, err)
+	}
+	if n != 1 {
+		t.Fatalf("expected one row in %q, got %d", path, n)
+	}
+
+	return rows[0]
+}
 func TestGetURL(t *testing.T) {
 	tests := []struct {
 		addr     string

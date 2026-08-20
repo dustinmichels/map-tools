@@ -32,6 +32,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   select: [upload: UploadedDataset];
   rename: [payload: { datasetId: string; name: string }];
+  simplify: [datasetId: string];
   open: [datasetId: string];
   delete: [datasetId: string];
 }>();
@@ -109,6 +110,16 @@ const submitRename = (datasetId: string) => {
             <span>Created {{ formatCreatedAt(upload.createdAt) }}</span>
             <span>{{ formatFileSize(upload.sizeBytes) }}</span>
             <span v-if="upload.rideCount != null">{{ upload.rideCount }} rides</span>
+            <span
+              :class="[
+                'upload-geometry-status',
+                upload.hasSimplified
+                  ? 'upload-geometry-status-ready'
+                  : 'upload-geometry-status-pending',
+              ]"
+            >
+              {{ upload.hasSimplified ? "Simplified geom ready" : "Needs geom simplification" }}
+            </span>
           </div>
         </div>
 
@@ -155,6 +166,14 @@ const submitRename = (datasetId: string) => {
             @click="emit('open', upload.datasetId)"
           >
             Open File
+          </button>
+          <button
+            v-if="props.manageable"
+            class="btn btn-secondary"
+            :disabled="props.busyDatasetId === upload.datasetId || upload.hasSimplified"
+            @click="emit('simplify', upload.datasetId)"
+          >
+            {{ upload.hasSimplified ? "Geom simplified" : "Simplify geom" }}
           </button>
           <button
             v-if="props.manageable"
@@ -231,6 +250,17 @@ const submitRename = (datasetId: string) => {
 .upload-empty {
   margin: 0;
   color: #888;
+}
+.upload-geometry-status {
+  font-size: 0.8rem;
+}
+
+.upload-geometry-status-ready {
+  color: #81c784;
+}
+
+.upload-geometry-status-pending {
+  color: #ffb74d;
 }
 
 .upload-list {
