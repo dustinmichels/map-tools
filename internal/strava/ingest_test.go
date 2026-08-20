@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dustinmichels/bumblebee-bike/internal/strava"
+	"github.com/dustinmichels/map-tools/internal/strava"
 	"github.com/parquet-go/parquet-go"
 )
 

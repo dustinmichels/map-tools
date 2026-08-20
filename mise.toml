@@ -20,7 +20,7 @@ run = [
 [tasks.clean]
 description = "Remove build artifacts"
 run = [
-  "rm -rf bin/bumblebee-bike web/dist/*",
+  "rm -rf bin/map-tools web/dist/*",
   "touch web/dist/.gitkeep",
 ]
 
@@ -36,19 +36,19 @@ run = [
 [tasks.build]
 description = "Compile frontend then embed into Go binary"
 depends = ["web-build"]
-run = "go build -o bin/bumblebee-bike ."
+run = "go build -o bin/map-tools ."
 
 # --- Run ---
 
 [tasks.run]
 description = "Build and run the compiled binary"
 depends = ["build"]
-run = "./bin/bumblebee-bike"
+run = "./bin/map-tools"
 
 [tasks.run-test]
 description = "Build and run the compiled binary in test mode"
 depends = ["build"]
-run = "APP_ENV=test ./bin/bumblebee-bike"
+run = "APP_ENV=test ./bin/map-tools"
 
 # --- Development ---
 

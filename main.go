@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/dustinmichels/bumblebee-bike/internal/server"
+	"github.com/dustinmichels/map-tools/internal/server"
 )
 
 //go:embed all:web/dist

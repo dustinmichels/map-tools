@@ -32,7 +32,7 @@ Run tasks using `mise run <task>` (or the shorthand `mise r <task>`):
   ```bash
   mise run build
   ```
-  This builds the Vite/Vue frontend and compiles the Go backend, embedding the frontend assets into the final binary (`bin/bumblebee-bike`).
+  This builds the Vite/Vue frontend and compiles the Go backend, embedding the frontend assets into the final binary (`bin/map-tools`).
 
 * **Run Production Build:**
   ```bash

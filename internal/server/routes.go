@@ -16,7 +16,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/dustinmichels/bumblebee-bike/internal/strava"
+	"github.com/dustinmichels/map-tools/internal/strava"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )

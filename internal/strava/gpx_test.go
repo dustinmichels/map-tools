@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/dustinmichels/bumblebee-bike/internal/strava"
+	"github.com/dustinmichels/map-tools/internal/strava"
 )
 
 // sampleGPX is a real .gpx file from the test export.

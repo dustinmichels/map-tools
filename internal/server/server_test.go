@@ -14,7 +14,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/dustinmichels/bumblebee-bike/internal/strava"
+	"github.com/dustinmichels/map-tools/internal/strava"
 )
 
 func TestHealth(t *testing.T) {

@@ -1,4 +1,4 @@
-module github.com/dustinmichels/bumblebee-bike
+module github.com/dustinmichels/map-tools
 
 go 1.26.3
 
