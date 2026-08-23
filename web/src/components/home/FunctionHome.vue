@@ -50,26 +50,10 @@ const tools: WorkflowCard[] = [
     badges: ["2 uploads", "shared area", "dual layers"],
   },
 ];
-
-const overviewBadges = ["Upload once", "Pick a map function", "Export from saved data"];
 </script>
 
 <template>
   <section class="home-layout">
-    <header class="card home-panel home-bar">
-      <div class="home-bar-copy">
-        <span class="section-label">Map workbench</span>
-        <h2>Pick the map function you need.</h2>
-        <p class="lead-text home-copy">
-          Start in Uploads, then open the viewer, lightning, or compare flow.
-        </p>
-      </div>
-
-      <ul class="badge-list overview-list" aria-label="Home overview">
-        <li v-for="badge in overviewBadges" :key="badge">{{ badge }}</li>
-      </ul>
-    </header>
-
     <section class="home-workbench" aria-label="Map workflows">
       <article class="card home-panel upload-panel">
         <div class="panel-header">
@@ -143,27 +127,17 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
   @apply p-5;
 }
 
-.home-bar {
-  @apply flex items-start justify-between gap-5;
-}
-
-.home-bar-copy {
-  @apply flex max-w-[720px] flex-col gap-2;
-}
-
 .section-label,
 .tool-eyebrow {
   @apply text-[0.72rem] font-bold uppercase text-amber-500;
   letter-spacing: 0.12em;
 }
 
-.home-bar h2,
 .panel-header h3,
 .workflow-head h4 {
   @apply m-0 text-white;
 }
 
-.home-copy,
 .tool-summary {
   @apply m-0;
 }
@@ -211,8 +185,7 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
   @apply rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-[0.78rem] leading-none text-zinc-300;
 }
 
-.compact-badges li,
-.overview-list li {
+.compact-badges li {
   @apply text-[0.74rem];
 }
 
@@ -240,7 +213,6 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
     @apply p-4;
   }
 
-  .home-bar,
   .workflow-head {
     @apply flex-col;
   }

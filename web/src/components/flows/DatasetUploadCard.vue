@@ -49,7 +49,6 @@ const fileListChanged = (event: Event) => {
   const target = event.target as HTMLInputElement;
   emit("selectFile", target.files?.[0] ?? null);
 };
-
 </script>
 
 <template>
@@ -73,11 +72,7 @@ const fileListChanged = (event: Event) => {
       <slot name="sourceSelection" />
     </div>
 
-    <div
-      ref="dropZoneRef"
-      class="upload-zone"
-      :class="{ dragging: isOverDropZone }"
-    >
+    <div ref="dropZoneRef" class="upload-zone" :class="{ dragging: isOverDropZone }">
       <input type="file" accept=".zip" class="file-input" @change="fileListChanged" />
       <label class="upload-label">
         <span class="upload-icon">📦</span>

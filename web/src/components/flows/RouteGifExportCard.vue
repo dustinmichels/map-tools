@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { RotateCcw } from "lucide-vue-next";
+
+const DEFAULT_ROUTE_COLOR = "#ff8c00";
+const DEFAULT_FLASH_COLOR = "#ffffff";
 
 const props = defineProps<{
   routeCount: number;
+  previewRouteCount: number;
+  previewTargetCount: number;
+  previewProgressCount: number;
   isFiltering: boolean;
   isPreparingPreview: boolean;
   isDownloading: boolean;
@@ -71,6 +78,84 @@ const downloadButtonLabel = computed(() => {
   if (props.exportFormat === "webm") return "Download WebM";
   return "Download MP4";
 });
+const previewSummary = computed(() => {
+  if (props.routeCount === 0) {
+    return null;
+  }
+
+  if (props.previewRouteCount >= props.routeCount) {
+    return `Showing all ${props.routeCount} rides in the browser preview.`;
+  }
+
+  if (!props.previewUrl) {
+    return `Rendering first ${props.previewTargetCount} of ${props.routeCount} rides for the preview.`;
+  }
+
+  if (props.isPreparingPreview) {
+    return `Playing first ${props.previewRouteCount} of ${props.routeCount} rides while rendering the rest of the preview in the background.`;
+  }
+
+  return `Showing first ${props.previewRouteCount} of ${props.routeCount} rides in the browser preview.`;
+});
+const previewReadyPercent = computed(() => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+
+  return (props.previewRouteCount / props.routeCount) * 100;
+});
+
+const previewTargetPercent = computed(() => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+
+  return (Math.max(props.previewRouteCount, props.previewTargetCount) / props.routeCount) * 100;
+});
+
+const previewProgressPercent = computed(() => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+
+  return (Math.max(props.previewRouteCount, props.previewProgressCount) / props.routeCount) * 100;
+});
+
+const previewProgressLabel = computed(() => {
+  if (props.routeCount === 0) {
+    return null;
+  }
+
+  if (props.previewRouteCount >= props.routeCount) {
+    return `${props.routeCount} of ${props.routeCount} rides ready`;
+  }
+
+  if (!props.previewUrl) {
+    return `Preparing first ${props.previewTargetCount} rides`;
+  }
+
+  if (props.isPreparingPreview) {
+    return `${Math.max(props.previewRouteCount, props.previewProgressCount)} of ${props.routeCount} rides rendered`;
+  }
+
+  return `${props.previewRouteCount} of ${props.routeCount} rides ready`;
+});
+
+const previewProgressDetail = computed(() => {
+  if (
+    props.routeCount === 0 ||
+    !props.isPreparingPreview ||
+    props.previewRouteCount >= props.routeCount
+  ) {
+    return null;
+  }
+
+  if (!props.previewUrl) {
+    return "Building the first playable preview.";
+  }
+
+  return `Current preview: ${props.previewRouteCount} rides · Rendering the remaining ${props.routeCount - props.previewRouteCount} rides`;
+});
 
 const isDelayFocused = ref(false);
 const isDurationFocused = ref(false);
@@ -79,14 +164,20 @@ const localFrameDelay = ref("");
 const localDuration = ref("");
 const activeTab = ref<"city" | "distance" | "date">("city");
 
+const getPlaybackDurationMs = (delay: number) => {
+  if (props.routeCount === 0) {
+    return 0;
+  }
+
+  return (props.routeCount + 1) * delay + 1200;
+};
+
 const formatDuration = (delay: number) => {
   if (props.routeCount === 0) {
     return "0";
   }
-  if (props.routeCount === 1) {
-    return "1.2";
-  }
-  return (((props.routeCount - 1) * delay + 1200) / 1000).toFixed(1);
+
+  return (getPlaybackDurationMs(delay) / 1000).toFixed(1);
 };
 
 const syncFromProps = () => {
@@ -137,7 +228,9 @@ const onFrameDelayBlur = () => {
   isDelayFocused.value = false;
   const numericValue = Number(localFrameDelay.value);
   if (Number.isFinite(numericValue) && numericValue < 20) {
-    showToast(`The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+    showToast(
+      `The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`,
+    );
   }
   syncFromProps();
 };
@@ -146,30 +239,26 @@ const minDuration = computed(() => {
   if (props.routeCount === 0) {
     return 0;
   }
-  if (props.routeCount === 1) {
-    return 1.2;
-  }
-  return Number((((props.routeCount - 1) * 20 + 1200) / 1000).toFixed(1));
+
+  return Number((getPlaybackDurationMs(20) / 1000).toFixed(1));
 });
 
 const maxDuration = computed(() => {
   if (props.routeCount === 0) {
     return 0;
   }
-  if (props.routeCount === 1) {
-    return 1.2;
-  }
-  return Number((((props.routeCount - 1) * 5000 + 1200) / 1000).toFixed(1));
+
+  return Number((getPlaybackDurationMs(5000) / 1000).toFixed(1));
 });
 
 const onDurationInput = (event: Event) => {
   const rawValue = (event.target as HTMLInputElement).value;
   localDuration.value = rawValue;
-
   const numericValue = Number(rawValue);
+
   if (Number.isFinite(numericValue) && numericValue > 0 && rawValue.trim() !== "") {
-    if (props.routeCount > 1) {
-      const calculatedDelay = (numericValue * 1000 - 1200) / (props.routeCount - 1);
+    if (props.routeCount > 0) {
+      const calculatedDelay = (numericValue * 1000 - 1200) / (props.routeCount + 1);
       const clampedDelay = Math.min(5000, Math.max(20, calculatedDelay));
       emit("update:frameDelayMs", clampedDelay);
 
@@ -188,7 +277,9 @@ const onDurationBlur = () => {
   isDurationFocused.value = false;
   const numericValue = Number(localDuration.value);
   if (Number.isFinite(numericValue) && numericValue < minDuration.value) {
-    showToast(`The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+    showToast(
+      `The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`,
+    );
   }
   syncFromProps();
 };
@@ -231,6 +322,7 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
         <template v-if="previewUrl">
           <video
             v-if="exportFormat === 'webm' || exportFormat === 'mp4'"
+            :key="previewUrl"
             class="gif-preview-image"
             :src="previewUrl"
             autoplay
@@ -240,14 +332,45 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
           ></video>
           <img
             v-else
+            :key="previewUrl"
             class="gif-preview-image"
             :src="previewUrl"
             alt="Animated route preview"
           />
         </template>
-        <div v-else class="gif-preview-empty">Preview appears here after the export is prepared.</div>
-        <div v-if="isPreparingPreview" class="gif-preview-overlay">Rendering preview…</div>
+        <div v-else class="gif-preview-empty">
+          Preview appears here after the export is prepared.
+        </div>
+        <div v-if="isPreparingPreview && !previewUrl" class="gif-preview-overlay">
+          Rendering preview…
+        </div>
       </div>
+    </div>
+    <div v-if="routeCount > 0" class="gif-preview-progress">
+      <div class="gif-preview-progress-copy">
+        <span class="gif-preview-progress-label">{{ previewProgressLabel }}</span>
+        <span v-if="previewProgressDetail" class="gif-preview-progress-detail">{{
+          previewProgressDetail
+        }}</span>
+      </div>
+      <div class="gif-preview-progress-bar" aria-hidden="true">
+        <span
+          class="gif-preview-progress-target"
+          :style="{ width: `${previewTargetPercent}%` }"
+        ></span>
+        <span
+          class="gif-preview-progress-ready"
+          :style="{ width: `${previewReadyPercent}%` }"
+        ></span>
+        <span
+          v-if="isPreparingPreview"
+          class="gif-preview-progress-active"
+          :style="{ width: `${previewProgressPercent}%` }"
+        ></span>
+      </div>
+    </div>
+    <div v-if="previewSummary" class="gif-preview-summary">
+      <span>{{ previewSummary }}</span>
     </div>
 
     <div class="general-gif-settings">
@@ -259,11 +382,18 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
             class="gif-field-select"
             :disabled="controlsDisabled"
             :value="exportFormat"
-            @change="emit('update:exportFormat', ($event.target as HTMLSelectElement).value as 'gif' | 'webm' | 'mp4')"
+            @change="
+              emit(
+                'update:exportFormat',
+                ($event.target as HTMLSelectElement).value as 'gif' | 'webm' | 'mp4',
+              )
+            "
           >
             <option value="gif">GIF (.gif)</option>
             <option value="webm">WebM Video (.webm)</option>
-            <option value="mp4" v-if="isNativeMp4Supported || isTranscodeAvailable">MP4 Video (.mp4)</option>
+            <option value="mp4" v-if="isNativeMp4Supported || isTranscodeAvailable">
+              MP4 Video (.mp4)
+            </option>
           </select>
           <span class="gif-field-help">Output file container type.</span>
         </label>
@@ -279,9 +409,18 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
               @input="emitRouteColor"
             />
             <span class="gif-color-value">{{ routeColor.toUpperCase() }}</span>
+            <button
+              v-if="routeColor.toLowerCase() !== DEFAULT_ROUTE_COLOR"
+              type="button"
+              class="gif-color-reset-btn"
+              title="Reset to default"
+              :disabled="controlsDisabled"
+              @click="emit('update:routeColor', DEFAULT_ROUTE_COLOR)"
+            >
+              <RotateCcw :size="14" />
+            </button>
           </div>
         </label>
-
         <label class="gif-field">
           <span class="gif-field-label">Flash color</span>
           <div class="gif-color-control">
@@ -293,9 +432,18 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
               @input="emitFlashColor"
             />
             <span class="gif-color-value">{{ flashColor.toUpperCase() }}</span>
+            <button
+              v-if="flashColor.toLowerCase() !== DEFAULT_FLASH_COLOR"
+              type="button"
+              class="gif-color-reset-btn"
+              title="Reset to default"
+              :disabled="controlsDisabled"
+              @click="emit('update:flashColor', DEFAULT_FLASH_COLOR)"
+            >
+              <RotateCcw :size="14" />
+            </button>
           </div>
         </label>
-
         <label class="gif-field">
           <span class="gif-field-label">Frame delay (ms)</span>
           <input
@@ -327,7 +475,7 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
             @focus="onDurationFocus"
             @blur="onDurationBlur"
           />
-          <span class="gif-field-help">Time to draw all routes.</span>
+          <span class="gif-field-help">Time to draw all routes in the export.</span>
         </label>
       </div>
     </div>
@@ -391,7 +539,13 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
 
       <div class="overlay-details-column">
         <h4 class="settings-section-title">
-          {{ activeTab === 'city' ? 'City Label Settings' : activeTab === 'date' ? 'Date Settings' : 'Distance Settings' }}
+          {{
+            activeTab === "city"
+              ? "City Label Settings"
+              : activeTab === "date"
+                ? "Date Settings"
+                : "Distance Settings"
+          }}
         </h4>
         <div class="overlay-details-panel">
           <!-- City Label Config -->
@@ -448,7 +602,9 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
                   class="gif-field-select"
                   :disabled="controlsDisabled"
                   :value="dateFormat"
-                  @change="emit('update:dateFormat', ($event.target as HTMLSelectElement).value as any)"
+                  @change="
+                    emit('update:dateFormat', ($event.target as HTMLSelectElement).value as any)
+                  "
                 >
                   <option value="month-day-year">Month day year (e.g. Jan 12, 2026)</option>
                   <option value="month-year">Month, Year (e.g. Jan, 2026)</option>
@@ -521,7 +677,9 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
                   class="gif-field-select"
                   :disabled="controlsDisabled"
                   :value="distancePosition"
-                  @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
+                  @change="
+                    emit('update:distancePosition', ($event.target as HTMLSelectElement).value)
+                  "
                 >
                   <option value="bottom-left">Bottom Left</option>
                   <option value="bottom-right">Bottom Right</option>
@@ -531,7 +689,6 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
               </label>
             </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -614,6 +771,53 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
   letter-spacing: 0.02em;
 }
 
+.gif-preview-progress {
+  @apply flex flex-col gap-2;
+}
+
+.gif-preview-progress-copy {
+  @apply flex flex-wrap items-center justify-between gap-2 text-[0.82rem] text-zinc-400;
+}
+
+.gif-preview-progress-label {
+  @apply font-semibold text-zinc-200;
+}
+
+.gif-preview-progress-detail {
+  @apply text-zinc-500;
+}
+
+.gif-preview-progress-bar {
+  position: relative;
+  height: 0.75rem;
+  @apply overflow-hidden rounded-full bg-zinc-900;
+}
+
+.gif-preview-progress-target,
+.gif-preview-progress-ready,
+.gif-preview-progress-active {
+  position: absolute;
+  inset: 0 auto 0 0;
+  @apply rounded-full;
+  transition: width 160ms ease;
+}
+
+.gif-preview-progress-target {
+  @apply bg-amber-950/70;
+}
+
+.gif-preview-progress-ready {
+  @apply bg-amber-700/65;
+}
+
+.gif-preview-progress-active {
+  @apply bg-amber-400;
+}
+
+.gif-preview-summary {
+  @apply rounded-xl border border-zinc-800 bg-zinc-950/70 px-4 py-3 text-[0.9rem] text-zinc-300;
+}
+
 .settings-section-title {
   @apply mb-2.5 mt-0 text-[0.82rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
@@ -650,6 +854,10 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
   font-family:
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
     monospace;
+}
+
+.gif-color-reset-btn {
+  @apply flex h-7 w-7 items-center justify-center rounded-md border border-zinc-700 bg-zinc-900 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-40;
 }
 
 .gif-field-input {

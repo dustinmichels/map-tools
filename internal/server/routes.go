@@ -345,6 +345,7 @@ type FilterRequest struct {
 	SessionId    string      `json:"sessionId"`
 	BBox         *[4]float64 `json:"bbox,omitempty"`
 	GeometryMode string      `json:"geometryMode,omitempty"`
+	Limit        int         `json:"limit,omitempty"`
 }
 
 func buildBBoxEnvelope(bbox *[4]float64) string {
@@ -375,6 +376,20 @@ func buildRouteGeometrySelect(bbox *[4]float64) string {
 	return "geometry"
 }
 
+func buildFilterFromClause(parquetPath, whereClause string, limit int) string {
+	quotedParquetPath := quoteDuckDBPath(parquetPath)
+	if limit <= 0 {
+		return fmt.Sprintf("FROM read_parquet('%s')\n  %s", quotedParquetPath, whereClause)
+	}
+
+	return fmt.Sprintf(
+		"FROM (SELECT * FROM read_parquet('%s')\n    %s) AS filtered\n  USING SAMPLE %d ROWS (reservoir)",
+		quotedParquetPath,
+		whereClause,
+		limit,
+	)
+}
+
 func resolveFilterParquetPath(record uploadRecord, geometryMode string) (string, error) {
 	if geometryMode == "original" {
 		return record.parquetPath, nil
@@ -390,6 +405,11 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		slog.Error("failed to decode filter request", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Limit < 0 {
+		http.Error(w, "limit must be non-negative", http.StatusBadRequest)
 		return
 	}
 
@@ -411,6 +431,7 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 		"sessionId", req.SessionId,
 		"bbox", req.BBox,
 		"geometryMode", req.GeometryMode,
+		"limit", req.Limit,
 	)
 
 	whereClause := buildRideFilterWhereClause(req.BBox)
@@ -427,7 +448,7 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause, req.BBox)
+	geoJSONData, err := exportGeoJSONFromParquet(parquetPath, whereClause, req.BBox, req.Limit)
 	if err != nil {
 		slog.Error("duckdb filter query failed", "err", err)
 		http.Error(w, fmt.Sprintf("filter query failed: %v", err), http.StatusInternalServerError)
@@ -439,7 +460,7 @@ func handleFilter(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(geoJSONData)
 }
 
-func exportGeoJSONFromParquet(parquetPath, whereClause string, bbox *[4]float64) ([]byte, error) {
+func exportGeoJSONFromParquet(parquetPath, whereClause string, bbox *[4]float64, limit int) ([]byte, error) {
 	outputFile, err := os.CreateTemp("", "maptools-output-*.geojson")
 	if err != nil {
 		return nil, err
@@ -466,13 +487,11 @@ COPY (
     activity_type,
     distance_km AS distance,
     %s
-  FROM read_parquet('%s')
   %s
   ORDER BY activity_date ASC
 ) TO '%s' WITH (FORMAT 'GDAL', DRIVER 'GeoJSON');`,
 		buildRouteGeometrySelect(bbox),
-		quoteDuckDBPath(parquetPath),
-		whereClause,
+		buildFilterFromClause(parquetPath, whereClause, limit),
 		quoteDuckDBPath(outputGeoJSON),
 	)
 

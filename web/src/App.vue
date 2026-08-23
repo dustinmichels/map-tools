@@ -12,6 +12,7 @@ const activeTool = computed(() => {
   if (route.path === "/compare") return "compare";
   return "home";
 });
+
 const health = ref<string | null>(null);
 
 onMounted(async () => {
@@ -48,11 +49,7 @@ const onSelectTool = (tool: string) => {
         >
           Uploads
         </button>
-        <button
-          v-if="activeTool !== 'home'"
-          class="btn btn-secondary"
-          @click="router.push('/')"
-        >
+        <button v-if="activeTool !== 'home'" class="btn btn-secondary" @click="router.push('/')">
           Home
         </button>
         <div class="api-badge" :class="health">

@@ -43,7 +43,6 @@ const fileListChanged = (event: Event) => {
   const target = event.target as HTMLInputElement;
   selectFiles(target.files);
 };
-
 </script>
 
 <template>
@@ -55,11 +54,7 @@ const fileListChanged = (event: Event) => {
       </div>
     </div>
 
-    <div
-      ref="dropZoneRef"
-      class="upload-zone"
-      :class="{ dragging: isOverDropZone }"
-    >
+    <div ref="dropZoneRef" class="upload-zone" :class="{ dragging: isOverDropZone }">
       <input type="file" accept=".zip" multiple class="file-input" @change="fileListChanged" />
       <label class="upload-label">
         <span class="upload-icon">📦</span>

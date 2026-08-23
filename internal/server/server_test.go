@@ -408,6 +408,88 @@ func TestFilterUsesOriginalGeometryWhenRequested(t *testing.T) {
 	}
 }
 
+func TestFilterAppliesLimitAfterRideFilter(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "uploads")
+	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	parquetPath := filepath.Join(dataDir, "legacy.parquet")
+	file, err := os.Create(parquetPath)
+	if err != nil {
+		t.Fatalf("create parquet %q: %v", parquetPath, err)
+	}
+
+	writer := parquet.NewGenericWriter[strava.ActivityRow](file,
+		parquet.KeyValueMetadata("geo", `{"version":"1.1.0","primary_column":"geometry","columns":{"geometry":{"encoding":"WKB","geometry_types":["LineString"]}}}`),
+	)
+	rows := []strava.ActivityRow{
+		{
+			ActivityID:   99,
+			ActivityDate: "2026-08-19",
+			ActivityName: "Legacy Ride",
+			ActivityType: "Ride",
+			Filename:     "legacy.fit",
+			Geometry: strava.LineStringWKB([][2]float64{
+				{-71.1000, 42.3600},
+				{-71.0995, 42.3605},
+			}),
+		},
+		{
+			ActivityID:   100,
+			ActivityDate: "2026-08-20",
+			ActivityName: "Second Ride",
+			ActivityType: "Ride",
+			Filename:     "legacy-2.fit",
+			Geometry: strava.LineStringWKB([][2]float64{
+				{-71.1100, 42.3500},
+				{-71.1095, 42.3505},
+			}),
+		},
+	}
+	if _, err := writer.Write(rows); err != nil {
+		_ = file.Close()
+		t.Fatalf("write parquet %q: %v", parquetPath, err)
+	}
+	if err := writer.Close(); err != nil {
+		_ = file.Close()
+		t.Fatalf("close parquet writer %q: %v", parquetPath, err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close parquet %q: %v", parquetPath, err)
+	}
+
+	router := apiRouter()
+	body, err := json.Marshal(FilterRequest{SessionId: "legacy", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest("POST", "/filter", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		respBody, _ := io.ReadAll(rr.Body)
+		t.Fatalf("filter failed with status %d: %s", rr.Code, respBody)
+	}
+
+	var geojson map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&geojson); err != nil {
+		t.Fatalf("decode filter geojson: %v", err)
+	}
+
+	features, ok := geojson["features"].([]any)
+	if !ok {
+		t.Fatalf("expected features array, got %T", geojson["features"])
+	}
+	if len(features) != 1 {
+		t.Fatalf("expected one sampled feature, got %d", len(features))
+	}
+}
+
 func TestFilterClipsMultilineGeometryToBBox(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "uploads")
 	t.Setenv("MAPTOOLS_DATA_DIR", dataDir)

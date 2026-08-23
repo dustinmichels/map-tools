@@ -13,6 +13,7 @@ import {
   DEFAULT_BOSTON_BBOX,
   DEFAULT_BOSTON_CENTER,
   type BBox,
+  type GeoJSONFeatureCollection,
   type GeometryMode,
   type LngLat,
   type RouteLayer,
@@ -54,10 +55,12 @@ const {
   isNativeMp4Supported,
   isTranscodeAvailable,
   previewUrl,
+  previewRouteCount,
+  previewTargetCount,
+  previewProgressCount,
   isPreparingPreview,
   isDownloading,
   exportError,
-  statusMessage,
   showCityName,
   cityFont,
   cityPosition,
@@ -85,6 +88,33 @@ watch(
   },
   { immediate: true },
 );
+
+const AREA_PREVIEW_DELAY_MS = 300;
+const AREA_PREVIEW_ROUTE_LIMIT = 200;
+const AREA_PREVIEW_ROUTE_COLOR = "#a1a1aa";
+
+const previewViewportBBox = ref<BBox | null>(null);
+const previewGeoJSON = ref<GeoJSONFeatureCollection | null>(null);
+const isLoadingAreaPreview = ref(false);
+
+const previewRoutes = computed<RouteLayer[]>(() => {
+  const geoJSON = previewGeoJSON.value;
+  if (!geoJSON) {
+    return [];
+  }
+
+  return [
+    {
+      id: `${props.routeId}-preview`,
+      label: `${props.toolTitle} preview`,
+      color: AREA_PREVIEW_ROUTE_COLOR,
+      data: geoJSON,
+      opacity: 0.35,
+      width: 1.5,
+      interactive: false,
+    },
+  ];
+});
 
 const displayRoutes = computed<RouteLayer[]>(() => [
   {
@@ -143,6 +173,65 @@ const loadMap = async (preserveResults = false) => {
   });
 };
 
+const handlePreviewViewportChange = (viewportBBox: BBox) => {
+  previewViewportBBox.value = [...viewportBBox];
+};
+
+watch(
+  [currentStep, () => dataset.sessionId.value, previewViewportBBox],
+  ([step, sessionId, viewportBBox], _, onCleanup) => {
+    if (step !== 2 || !sessionId || !viewportBBox) {
+      isLoadingAreaPreview.value = false;
+      if (step !== 2 || !sessionId) {
+        previewGeoJSON.value = null;
+      }
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      isLoadingAreaPreview.value = true;
+
+      try {
+        const res = await fetch("/api/filter", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionId,
+            bbox: viewportBBox,
+            geometryMode: "simplified",
+            limit: AREA_PREVIEW_ROUTE_LIMIT,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `Server returned status ${res.status}`);
+        }
+
+        previewGeoJSON.value = (await res.json()) as GeoJSONFeatureCollection;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to load area preview:", error);
+      } finally {
+        if (!controller.signal.aborted) {
+          isLoadingAreaPreview.value = false;
+        }
+      }
+    }, AREA_PREVIEW_DELAY_MS);
+
+    onCleanup(() => {
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    });
+  },
+);
+
 const prepareRouteGifPreview = async () => {
   await preparePreview({
     geoJSON: dataset.activitiesGeoJSON.value,
@@ -164,6 +253,12 @@ const downloadRouteAnimation = async () => {
 };
 
 watch(currentStep, (step) => {
+  if (step !== 2) {
+    previewViewportBBox.value = null;
+    previewGeoJSON.value = null;
+    isLoadingAreaPreview.value = false;
+  }
+
   if (step === 3 && dataset.readyToFilter.value) {
     void loadMap();
     return;
@@ -266,6 +361,9 @@ const resetFlow = () => {
   bbox.value = [...DEFAULT_BOSTON_BBOX];
   center.value = [...DEFAULT_BOSTON_CENTER];
   geometryMode.value = "simplified";
+  previewViewportBBox.value = null;
+  previewGeoJSON.value = null;
+  isLoadingAreaPreview.value = false;
   dataset.reset();
   resetState();
   cityNameOverlay.value = formatCityName(cityName.value);
@@ -319,11 +417,7 @@ onUnmounted(() => {
 
 <template>
   <section class="flow-layout">
-    <FlowStepper
-      :current-step="currentStep"
-      :steps="steps"
-      @step-click="currentStep = $event"
-    >
+    <FlowStepper :current-step="currentStep" :steps="steps" @step-click="currentStep = $event">
       <template #actions>
         <button
           v-if="nextButton"
@@ -403,7 +497,19 @@ onUnmounted(() => {
       @back="currentStep = 1"
       @select-city="handleSelectCity"
     >
-      <MapView v-model:bbox="bbox" :center="center" :show-b-box="true" :routes="[]" />
+      <template #details>
+        <p v-if="dataset.readyToFilter.value" class="geometry-note">
+          Showing up to {{ AREA_PREVIEW_ROUTE_LIMIT }} simplified rides from the visible map area.
+          <span v-if="isLoadingAreaPreview"> Refreshing preview…</span>
+        </p>
+      </template>
+      <MapView
+        v-model:bbox="bbox"
+        :center="center"
+        :show-b-box="true"
+        :routes="previewRoutes"
+        @viewport-change="handlePreviewViewportChange"
+      />
     </AreaSelectionCard>
 
     <div v-else-if="currentStep === 3" class="card-group">
@@ -427,7 +533,8 @@ onUnmounted(() => {
           <p>
             Showing <strong>{{ dataset.activitiesCount.value }}</strong> rides from
             <strong>{{ cityName }}</strong> in one route layer using
-            <strong>{{ usingSimplifiedGeometry ? "simplified" : "original" }}</strong> geometry.
+            <strong>{{ usingSimplifiedGeometry ? "simplified" : "original" }}</strong>
+            geometry.
           </p>
 
           <div class="geometry-panel">
@@ -483,6 +590,9 @@ onUnmounted(() => {
     <section v-else class="card flow-card final-card">
       <RouteGifExportCard
         :route-count="availableRouteCount"
+        :preview-route-count="previewRouteCount"
+        :preview-target-count="previewTargetCount"
+        :preview-progress-count="previewProgressCount"
         :is-filtering="dataset.isFiltering.value"
         :is-preparing-preview="isPreparingPreview"
         :is-downloading="isDownloading"

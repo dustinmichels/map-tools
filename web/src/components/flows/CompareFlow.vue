@@ -251,11 +251,7 @@ onUnmounted(() => {
 
 <template>
   <section class="flow-layout">
-    <FlowStepper
-      :current-step="currentStep"
-      :steps="steps"
-      @step-click="currentStep = $event"
-    >
+    <FlowStepper :current-step="currentStep" :steps="steps" @step-click="currentStep = $event">
       <template #actions>
         <button
           v-if="nextButton"

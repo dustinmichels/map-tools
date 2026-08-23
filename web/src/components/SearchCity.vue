@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from "vue";
+import { ref, watch } from "vue";
+import { useDebounceFn } from "@vueuse/core";
 
 interface NominatimResult {
   place_id: number;
@@ -25,7 +26,6 @@ const query = ref("");
 const suggestions = ref<NominatimResult[]>([]);
 const loading = ref(false);
 const showError = ref(false);
-let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 let latestRequestId = 0;
 let suppressNextWatch = false;
 
@@ -66,10 +66,11 @@ const searchCities = async (value: string) => {
   }
 };
 
+const debouncedSearch = useDebounceFn((value: string) => {
+  void searchCities(value);
+}, 400);
+
 watch(query, (value) => {
-  if (debounceTimeout) {
-    clearTimeout(debounceTimeout);
-  }
   if (suppressNextWatch) {
     suppressNextWatch = false;
     return;
@@ -79,17 +80,8 @@ watch(query, (value) => {
     return;
   }
 
-  debounceTimeout = setTimeout(() => {
-    void searchCities(value);
-  }, 400);
+  debouncedSearch(value);
 });
-
-onUnmounted(() => {
-  if (debounceTimeout) {
-    clearTimeout(debounceTimeout);
-  }
-});
-
 const selectSuggestion = (item: NominatimResult) => {
   latestRequestId += 1;
   suppressNextWatch = true;

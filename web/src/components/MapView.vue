@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Loader2 } from "lucide-vue-next";
 import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
+import { useResizeObserver, useDebounceFn } from "@vueuse/core";
 import {
   AttributionControl,
   Map as MapLibreMap,
@@ -32,7 +33,12 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (event: "update:bbox", bbox: BBox): void;
+  (event: "viewport-change", bbox: BBox): void;
 }>();
+
+const debouncedEmitBBox = useDebounceFn((updatedBBox: BBox) => {
+  emit("update:bbox", updatedBBox);
+}, 200);
 
 interface RouteHoverEvent {
   lngLat: { lng: number; lat: number };
@@ -48,6 +54,12 @@ interface RouteTooltipHandlers {
 
 const mapContainer = ref<HTMLElement | null>(null);
 const map = shallowRef<MapLibreMap | null>(null);
+
+useResizeObserver(mapContainer, () => {
+  if (map.value) {
+    map.value.resize();
+  }
+});
 const isDragging = ref(false);
 const mapReady = ref(false);
 const mapError = ref<string | null>(null);
@@ -80,6 +92,20 @@ const getBBoxGeoJSON = (bboxValue: BBox) => {
       ],
     },
   };
+};
+
+const emitViewportChange = () => {
+  if (!map.value) {
+    return;
+  }
+
+  const bounds = map.value.getBounds();
+  emit("viewport-change", [
+    bounds.getWest(),
+    bounds.getSouth(),
+    bounds.getEast(),
+    bounds.getNorth(),
+  ]);
 };
 
 const routeSourceId = (routeId: string) => `route-source-${routeId}`;
@@ -272,6 +298,8 @@ const syncRoutes = () => {
 
     if (map.value.getLayer(layerId)) {
       map.value.setPaintProperty(layerId, "line-color", route.color);
+      map.value.setPaintProperty(layerId, "line-width", route.width ?? 2.5);
+      map.value.setPaintProperty(layerId, "line-opacity", route.opacity ?? 0.95);
     } else {
       map.value.addLayer({
         id: layerId,
@@ -283,13 +311,17 @@ const syncRoutes = () => {
         },
         paint: {
           "line-color": route.color,
-          "line-width": 2.5,
-          "line-opacity": 0.95,
+          "line-width": route.width ?? 2.5,
+          "line-opacity": route.opacity ?? 0.95,
         },
       });
     }
 
-    attachRouteTooltip(route.id);
+    if (route.interactive === false) {
+      detachRouteTooltip(route.id);
+    } else {
+      attachRouteTooltip(route.id);
+    }
   }
 
   for (const routeId of renderedRouteIds) {
@@ -386,8 +418,7 @@ const handleDrag = (corner: "sw" | "nw" | "ne" | "se") => {
   }
 
   const updatedBBox: BBox = [minLng, minLat, maxLng, maxLat];
-  emit("update:bbox", updatedBBox);
-
+  debouncedEmitBBox(updatedBBox);
   const source = map.value.getSource("bbox-source") as GeoJSONSource | undefined;
   if (source) {
     source.setData(getBBoxGeoJSON(updatedBBox));
@@ -408,16 +439,28 @@ const setupMarkers = () => {
 
   const [minLng, minLat, maxLng, maxLat] = props.bbox;
 
-  const sw = new Marker({ element: createMarkerEl("Southwest"), draggable: true })
+  const sw = new Marker({
+    element: createMarkerEl("Southwest"),
+    draggable: true,
+  })
     .setLngLat([minLng, minLat])
     .addTo(map.value);
-  const nw = new Marker({ element: createMarkerEl("Northwest"), draggable: true })
+  const nw = new Marker({
+    element: createMarkerEl("Northwest"),
+    draggable: true,
+  })
     .setLngLat([minLng, maxLat])
     .addTo(map.value);
-  const ne = new Marker({ element: createMarkerEl("Northeast"), draggable: true })
+  const ne = new Marker({
+    element: createMarkerEl("Northeast"),
+    draggable: true,
+  })
     .setLngLat([maxLng, maxLat])
     .addTo(map.value);
-  const se = new Marker({ element: createMarkerEl("Southeast"), draggable: true })
+  const se = new Marker({
+    element: createMarkerEl("Southeast"),
+    draggable: true,
+  })
     .setLngLat([maxLng, minLat])
     .addTo(map.value);
 
@@ -578,6 +621,10 @@ const initMap = () => {
   map.value.addControl(new NavigationControl(), "top-right");
   map.value.addControl(new AttributionControl({ compact: true }), "bottom-right");
 
+  map.value.on("moveend", () => {
+    emitViewportChange();
+  });
+
   map.value.on("load", () => {
     if (loadTimeout) {
       clearTimeout(loadTimeout);
@@ -639,6 +686,7 @@ const initMap = () => {
 
     map.value.resize();
     fitToBBox(0);
+    emitViewportChange();
   });
 };
 

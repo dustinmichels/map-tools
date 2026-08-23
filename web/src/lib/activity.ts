@@ -24,6 +24,9 @@ export interface RouteLayer {
   label: string;
   color: string;
   data: GeoJSONFeatureCollection | null;
+  opacity?: number;
+  width?: number;
+  interactive?: boolean;
 }
 
 export interface SelectedCity {
@@ -146,7 +149,10 @@ export const formatCreatedAt = (value: string) => {
 
 export const formatCityName = (name: string): string => {
   if (!name) return "";
-  const parts = name.split(",").map((p) => p.trim()).filter(Boolean);
+  const parts = name
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
   if (parts.length <= 1) {
     return name;
   }

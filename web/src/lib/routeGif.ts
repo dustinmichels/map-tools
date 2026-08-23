@@ -23,11 +23,7 @@ export const getSupportedMimeType = (preferredFormat?: "mp4" | "webm"): string =
   if (typeof MediaRecorder === "undefined") {
     return "";
   }
-  const mp4Types = [
-    "video/mp4;codecs=h264,aac",
-    "video/mp4;codecs=avc1",
-    "video/mp4",
-  ];
+  const mp4Types = ["video/mp4;codecs=h264,aac", "video/mp4;codecs=avc1", "video/mp4"];
   const webmTypes = [
     "video/webm;codecs=h264",
     "video/webm;codecs=vp9",
@@ -57,7 +53,6 @@ export const isNativeMp4Supported = (): boolean => {
 export const isMovieExportSupported = (): boolean => {
   return getSupportedMimeType() !== "";
 };
-
 
 export interface BuildRouteAnimationOptions {
   geoJSON: GeoJSONFeatureCollection;
@@ -163,10 +158,26 @@ const getRouteId = (feature: GeoJSONFeature) =>
 const getRouteDate = (feature: GeoJSONFeature) =>
   getStringProperty(feature, "route_date", "activity_date");
 
-const formatDate = (dateStr: string | undefined, format?: "month-day-year" | "month-year"): string => {
+const formatDate = (
+  dateStr: string | undefined,
+  format?: "month-day-year" | "month-year",
+): string => {
   if (!dateStr) return "";
   const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   if (match) {
     const year = match[1];
     const monthIndex = parseInt(match[2], 10) - 1;
@@ -423,7 +434,7 @@ interface GifEncoderInstance {
       palette?: number[][];
       repeat?: number;
       delay?: number;
-    }
+    },
   ) => void;
   finish: () => void;
   bytesView: () => Uint8Array;
@@ -494,7 +505,7 @@ export async function buildRouteAnimation({
   const drawOverlays = (
     context2d: CanvasRenderingContext2D,
     currentDistance: number,
-    currentDateStr: string | undefined
+    currentDateStr: string | undefined,
   ) => {
     const hasCity = !!(showCityName && cityName);
     const hasDist = !!showDistance;
@@ -659,6 +670,31 @@ export async function buildRouteAnimation({
     gif = GIFEncoder();
   }
 
+  const writeCurrentFrame = async (delay: number, isFirstFrame = false) => {
+    if (isMovie && mediaRecorder) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, delay);
+      await promise;
+      return;
+    }
+
+    if (!gif) {
+      return;
+    }
+
+    const frame = createIndexedFrame(
+      ctx.getImageData(0, 0, squareSize, squareSize).data,
+      routeRgb,
+      flashRgb,
+      needTertiaryWhite,
+    );
+    gif.writeFrame(frame, squareSize, squareSize, {
+      palette: isFirstFrame ? palette : undefined,
+      repeat: isFirstFrame ? 0 : undefined,
+      delay,
+    });
+  };
+
   try {
     const routeDistances = routes.map(getRouteDistance);
     const distancePrefixSums = [0];
@@ -667,6 +703,13 @@ export async function buildRouteAnimation({
       runningSum += routeDistances[i];
       distancePrefixSums.push(runningSum);
     }
+
+    const firstRouteDate = getRouteDate(routes[0]);
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, squareSize, squareSize);
+    drawOverlays(ctx, 0, firstRouteDate ?? undefined);
+    await writeCurrentFrame(perFrameDelay, true);
 
     for (let index = 0; index < routes.length; index += 1) {
       if (index > 0) {
@@ -678,12 +721,10 @@ export async function buildRouteAnimation({
         routesCtx.restore();
       }
 
-      // Clear the composite canvas and copy the accumulated routes
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, squareSize, squareSize);
       ctx.drawImage(routesCanvas, 0, 0);
 
-      // Draw current route in flash color on the composite canvas
       ctx.save();
       ctx.beginPath();
       ctx.rect(projector.clipX, projector.clipY, projector.clipWidth, projector.clipHeight);
@@ -691,25 +732,8 @@ export async function buildRouteAnimation({
       drawRoute(ctx, routes[index], projector);
       ctx.restore();
 
-      // Draw city name, distance, and date overlays
-      drawOverlays(ctx, distancePrefixSums[index], getRouteDate(routes[index]));
-
-      if (isMovie && mediaRecorder) {
-        // Wait the frame delay for the video recording to capture the frame in real time
-        await new Promise((resolve) => setTimeout(resolve, perFrameDelay));
-      } else if (gif) {
-        const frame = createIndexedFrame(
-          ctx.getImageData(0, 0, squareSize, squareSize).data,
-          routeRgb,
-          flashRgb,
-          needTertiaryWhite,
-        );
-        gif.writeFrame(frame, squareSize, squareSize, {
-          palette: index === 0 ? palette : undefined,
-          repeat: index === 0 ? 0 : undefined,
-          delay: perFrameDelay,
-        });
-      }
+      drawOverlays(ctx, distancePrefixSums[index + 1], getRouteDate(routes[index]) ?? undefined);
+      await writeCurrentFrame(perFrameDelay);
 
       onProgress?.({ completedRoutes: index + 1, totalRoutes: routes.length });
       if ((index + 1) % 10 === 0 || index === routes.length - 1) {
@@ -717,7 +741,6 @@ export async function buildRouteAnimation({
       }
     }
 
-    // Draw the final route in route color onto routesCanvas
     routesCtx.save();
     routesCtx.beginPath();
     routesCtx.rect(projector.clipX, projector.clipY, projector.clipWidth, projector.clipHeight);
@@ -725,28 +748,16 @@ export async function buildRouteAnimation({
     drawRoute(routesCtx, routes[routes.length - 1], projector);
     routesCtx.restore();
 
-    // Copy all final routes onto composite canvas
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, squareSize, squareSize);
     ctx.drawImage(routesCanvas, 0, 0);
 
-    // Draw overlays with the final total accumulated distance and date
-    drawOverlays(ctx, totalAccumulatedDistance, getRouteDate(routes[routes.length - 1]));
-
-    if (isMovie && mediaRecorder) {
-      // Wait the final frame delay for the video recording to capture the final frame
-      await new Promise((resolve) => setTimeout(resolve, endingDelay));
-    } else if (gif) {
-      const finalFrame = createIndexedFrame(
-        ctx.getImageData(0, 0, squareSize, squareSize).data,
-        routeRgb,
-        flashRgb,
-        needTertiaryWhite,
-      );
-      gif.writeFrame(finalFrame, squareSize, squareSize, {
-        delay: endingDelay,
-      });
-    }
+    drawOverlays(
+      ctx,
+      totalAccumulatedDistance,
+      getRouteDate(routes[routes.length - 1]) ?? undefined,
+    );
+    await writeCurrentFrame(endingDelay);
   } finally {
     // Clean context state is handled per-frame
   }
