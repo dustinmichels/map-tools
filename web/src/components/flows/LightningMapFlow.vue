@@ -35,7 +35,7 @@ const steps = [
   { number: 1, label: "Upload" },
   { number: 2, label: "Area" },
   { number: 3, label: "Map" },
-  { number: 4, label: "Prepare GIF" },
+  { number: 4, label: "Prepare Export" },
 ];
 
 const currentStep = ref(1);
@@ -49,6 +49,10 @@ const {
   frameDelayMs,
   routeColor,
   flashColor,
+  exportFormat,
+  isMovieExportSupported,
+  isNativeMp4Supported,
+  isTranscodeAvailable,
   previewUrl,
   isPreparingPreview,
   isDownloading,
@@ -70,7 +74,7 @@ const {
   updateRouteColor,
   updateFlashColor,
   preparePreview,
-  downloadGif,
+  downloadAnimation,
   resetState,
 } = useRouteGifExport();
 
@@ -149,8 +153,8 @@ const prepareRouteGifPreview = async () => {
   });
 };
 
-const downloadRouteGif = async () => {
-  await downloadGif({
+const downloadRouteAnimation = async () => {
+  await downloadAnimation({
     geoJSON: dataset.activitiesGeoJSON.value,
     bbox: bbox.value,
     cityName: cityName.value,
@@ -186,6 +190,7 @@ watch(
     routeColor,
     flashColor,
     frameDelayMs,
+    exportFormat,
     showCityName,
     cityFont,
     cityPosition,
@@ -241,7 +246,7 @@ const nextButton = computed(() => {
 
   if (currentStep.value === 3) {
     return {
-      label: "Next: Prepare GIF",
+      label: "Next: Prepare Export",
       disabled:
         dataset.isFiltering.value ||
         dataset.filterError.value !== null ||
@@ -476,21 +481,6 @@ onUnmounted(() => {
     </div>
 
     <section v-else class="card flow-card final-card">
-      <h2>Prepare GIF</h2>
-      <p>
-        Preview the cumulative route animation, tune the line styling, then download the final GIF.
-      </p>
-
-      <div class="export-summary">
-        <h4>Location</h4>
-        <p>{{ cityName }}</p>
-        <h4>Bounding Box</h4>
-        <code class="block"
-          >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
-          {{ bbox[3].toFixed(4) }}</code
-        >
-      </div>
-
       <RouteGifExportCard
         :route-count="availableRouteCount"
         :is-filtering="dataset.isFiltering.value"
@@ -514,10 +504,14 @@ onUnmounted(() => {
         v-model:date-position="datePosition"
         v-model:date-font="dateFont"
         v-model:date-format="dateFormat"
+        v-model:export-format="exportFormat"
+        :is-movie-export-supported="isMovieExportSupported"
+        :is-native-mp4-supported="isNativeMp4Supported"
+        :is-transcode-available="isTranscodeAvailable"
         @update:route-color="updateRouteColor"
         @update:flash-color="updateFlashColor"
         @update:frame-delay-ms="updateFrameDelayMs"
-        @export="downloadRouteGif"
+        @export="downloadRouteAnimation"
       />
 
       <div class="card-actions mt-auto">

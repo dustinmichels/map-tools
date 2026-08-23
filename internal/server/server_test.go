@@ -971,3 +971,23 @@ func TestGetURL(t *testing.T) {
 		}
 	}
 }
+
+func TestTranscodeCheck(t *testing.T) {
+	router := apiRouter()
+	req := httptest.NewRequest("GET", "/transcode/check", nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if _, ok := resp["available"]; !ok {
+		t.Errorf("expected response to contain 'available', got %v", resp)
+	}
+}

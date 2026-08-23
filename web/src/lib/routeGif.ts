@@ -19,7 +19,47 @@ export interface RouteGifProgress {
   totalRoutes: number;
 }
 
-export interface BuildRouteAnimationGifOptions {
+export const getSupportedMimeType = (preferredFormat?: "mp4" | "webm"): string => {
+  if (typeof MediaRecorder === "undefined") {
+    return "";
+  }
+  const mp4Types = [
+    "video/mp4;codecs=h264,aac",
+    "video/mp4;codecs=avc1",
+    "video/mp4",
+  ];
+  const webmTypes = [
+    "video/webm;codecs=h264",
+    "video/webm;codecs=vp9",
+    "video/webm;codecs=vp8",
+    "video/webm",
+  ];
+
+  let types = [...mp4Types, ...webmTypes];
+  if (preferredFormat === "mp4") {
+    types = mp4Types;
+  } else if (preferredFormat === "webm") {
+    types = webmTypes;
+  }
+
+  for (const type of types) {
+    if (MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return "";
+};
+
+export const isNativeMp4Supported = (): boolean => {
+  return getSupportedMimeType("mp4") !== "";
+};
+
+export const isMovieExportSupported = (): boolean => {
+  return getSupportedMimeType() !== "";
+};
+
+
+export interface BuildRouteAnimationOptions {
   geoJSON: GeoJSONFeatureCollection;
   bbox: BBox;
   size?: number;
@@ -40,6 +80,8 @@ export interface BuildRouteAnimationGifOptions {
   datePosition?: string;
   dateFont?: string;
   dateFormat?: "month-day-year" | "month-year";
+  format?: "gif" | "webm" | "mp4" | "movie";
+  onProgress?: (progress: RouteGifProgress) => void;
 }
 
 interface Projector {
@@ -372,7 +414,22 @@ const createIndexedFrame = (
   return frame;
 };
 
-export async function buildRouteAnimationGif({
+interface GifEncoderInstance {
+  writeFrame: (
+    frame: Uint8Array | Uint8ClampedArray,
+    width: number,
+    height: number,
+    options?: {
+      palette?: number[][];
+      repeat?: number;
+      delay?: number;
+    }
+  ) => void;
+  finish: () => void;
+  bytesView: () => Uint8Array;
+}
+
+export async function buildRouteAnimation({
   geoJSON,
   bbox,
   size,
@@ -382,20 +439,22 @@ export async function buildRouteAnimationGif({
   flashColor,
   onProgress,
   cityName,
-  showCityName = false,
+  showCityName = true,
   cityFont = "serif",
-  cityPosition = "bottom-left",
-  showDistance = false,
+  cityPosition = "top-left",
+  showDistance = true,
   distancePosition = "bottom-right",
-  distanceUnit = "km",
+  distanceUnit = "miles",
   distanceFont = "monospace",
-  showDate = false,
-  datePosition = "bottom-right",
-  dateFont = "monospace",
+  showDate = true,
+  datePosition = "bottom-left",
+  dateFont = "serif",
   dateFormat = "month-day-year",
-}: BuildRouteAnimationGifOptions) {
+  format = "gif",
+}: BuildRouteAnimationOptions) {
+  const isMovie = format === "webm" || format === "mp4" || format === "movie";
   if (typeof document === "undefined") {
-    throw new Error("Animated GIF export is only available in the browser.");
+    throw new Error("Animated export is only available in the browser.");
   }
 
   const routes = geoJSON.features
@@ -403,9 +462,8 @@ export async function buildRouteAnimationGif({
     .slice()
     .sort(compareChronologically);
   if (routes.length === 0) {
-    throw new Error("No ride geometry is available for GIF export.");
+    throw new Error("No ride geometry is available for export.");
   }
-
   const distanceFactor = distanceUnit === "miles" ? 0.62137119 : 1.0;
   const unitLabel = distanceUnit === "miles" ? " mi" : " km";
 
@@ -576,7 +634,30 @@ export async function buildRouteAnimationGif({
   ctx.lineWidth = Math.max(1.75, squareSize / 320);
   ctx.strokeStyle = `rgb(${flashRgb[0]}, ${flashRgb[1]}, ${flashRgb[2]})`;
 
-  const gif = GIFEncoder();
+  let gif: GifEncoderInstance | null = null;
+  let mediaRecorder: MediaRecorder | null = null;
+  let chunks: Blob[] = [];
+  let mimeType = "";
+
+  if (isMovie) {
+    mimeType = getSupportedMimeType(format === "mp4" || format === "webm" ? format : undefined);
+    if (!mimeType) {
+      mimeType = getSupportedMimeType();
+    }
+    if (!mimeType) {
+      throw new Error("No supported video MIME type found in this browser.");
+    }
+    const stream = canvas.captureStream(30);
+    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        chunks.push(e.data);
+      }
+    };
+    mediaRecorder.start();
+  } else {
+    gif = GIFEncoder();
+  }
 
   try {
     const routeDistances = routes.map(getRouteDistance);
@@ -613,17 +694,22 @@ export async function buildRouteAnimationGif({
       // Draw city name, distance, and date overlays
       drawOverlays(ctx, distancePrefixSums[index], getRouteDate(routes[index]));
 
-      const frame = createIndexedFrame(
-        ctx.getImageData(0, 0, squareSize, squareSize).data,
-        routeRgb,
-        flashRgb,
-        needTertiaryWhite,
-      );
-      gif.writeFrame(frame, squareSize, squareSize, {
-        palette: index === 0 ? palette : undefined,
-        repeat: index === 0 ? 0 : undefined,
-        delay: perFrameDelay,
-      });
+      if (isMovie && mediaRecorder) {
+        // Wait the frame delay for the video recording to capture the frame in real time
+        await new Promise((resolve) => setTimeout(resolve, perFrameDelay));
+      } else if (gif) {
+        const frame = createIndexedFrame(
+          ctx.getImageData(0, 0, squareSize, squareSize).data,
+          routeRgb,
+          flashRgb,
+          needTertiaryWhite,
+        );
+        gif.writeFrame(frame, squareSize, squareSize, {
+          palette: index === 0 ? palette : undefined,
+          repeat: index === 0 ? 0 : undefined,
+          delay: perFrameDelay,
+        });
+      }
 
       onProgress?.({ completedRoutes: index + 1, totalRoutes: routes.length });
       if ((index + 1) % 10 === 0 || index === routes.length - 1) {
@@ -647,19 +733,37 @@ export async function buildRouteAnimationGif({
     // Draw overlays with the final total accumulated distance and date
     drawOverlays(ctx, totalAccumulatedDistance, getRouteDate(routes[routes.length - 1]));
 
-    const finalFrame = createIndexedFrame(
-      ctx.getImageData(0, 0, squareSize, squareSize).data,
-      routeRgb,
-      flashRgb,
-      needTertiaryWhite,
-    );
-    gif.writeFrame(finalFrame, squareSize, squareSize, {
-      delay: endingDelay,
-    });
+    if (isMovie && mediaRecorder) {
+      // Wait the final frame delay for the video recording to capture the final frame
+      await new Promise((resolve) => setTimeout(resolve, endingDelay));
+    } else if (gif) {
+      const finalFrame = createIndexedFrame(
+        ctx.getImageData(0, 0, squareSize, squareSize).data,
+        routeRgb,
+        flashRgb,
+        needTertiaryWhite,
+      );
+      gif.writeFrame(finalFrame, squareSize, squareSize, {
+        delay: endingDelay,
+      });
+    }
   } finally {
     // Clean context state is handled per-frame
   }
 
-  gif.finish();
-  return new Blob([gif.bytesView()], { type: "image/gif" });
+  if (isMovie && mediaRecorder) {
+    const { promise, resolve, reject } = Promise.withResolvers<Blob>();
+    mediaRecorder.onstop = () => {
+      resolve(new Blob(chunks, { type: mimeType }));
+    };
+    mediaRecorder.onerror = (err) => {
+      reject(err);
+    };
+    mediaRecorder.stop();
+    return promise;
+  } else if (gif) {
+    gif.finish();
+    return new Blob([gif.bytesView()], { type: "image/gif" });
+  }
+  throw new Error("Invalid export configuration.");
 }

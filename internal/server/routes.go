@@ -31,6 +31,8 @@ func apiRouter() http.Handler {
 	r.Patch("/uploads/{datasetId}", handleRenameUpload)
 	r.Delete("/uploads/{datasetId}", handleDeleteUpload)
 	r.Post("/filter", handleFilter)
+	r.Post("/transcode", handleTranscode)
+	r.Get("/transcode/check", handleTranscodeCheck)
 	return r
 }
 
@@ -850,4 +852,55 @@ func fileExists(path string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func handleTranscodeCheck(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	_, err := exec.LookPath("ffmpeg")
+	available := err == nil
+	_ = json.NewEncoder(w).Encode(map[string]bool{"available": available})
+}
+
+func handleTranscode(w http.ResponseWriter, r *http.Request) {
+	ffmpegPath, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		http.Error(w, "ffmpeg not found on server", http.StatusServiceUnavailable)
+		return
+	}
+
+	tmpIn, err := os.CreateTemp("", "transcode-*.webm")
+	if err != nil {
+		http.Error(w, "failed to create temp file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer os.Remove(tmpIn.Name())
+	defer tmpIn.Close()
+
+	_, err = io.Copy(tmpIn, r.Body)
+	if err != nil {
+		http.Error(w, "failed to read request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	tmpIn.Close()
+
+	tmpOutName := tmpIn.Name() + ".mp4"
+	defer os.Remove(tmpOutName)
+
+	cmd := exec.Command(ffmpegPath, "-y", "-i", tmpIn.Name(), "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "23", tmpOutName)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		http.Error(w, fmt.Sprintf("ffmpeg failed: %v\nstderr: %s", err, stderr.String()), http.StatusInternalServerError)
+		return
+	}
+
+	outFile, err := os.Open(tmpOutName)
+	if err != nil {
+		http.Error(w, "failed to open transcoded file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer outFile.Close()
+
+	w.Header().Set("Content-Type", "video/mp4")
+	_, _ = io.Copy(w, outFile)
 }

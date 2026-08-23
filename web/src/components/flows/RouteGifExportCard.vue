@@ -24,6 +24,10 @@ const props = defineProps<{
   datePosition: string;
   dateFont: string;
   dateFormat: "month-day-year" | "month-year";
+  exportFormat: "gif" | "webm" | "mp4";
+  isMovieExportSupported: boolean;
+  isNativeMp4Supported: boolean;
+  isTranscodeAvailable: boolean;
 }>();
 const emit = defineEmits<{
   (event: "update:routeColor", value: string): void;
@@ -41,6 +45,7 @@ const emit = defineEmits<{
   (event: "update:datePosition", value: string): void;
   (event: "update:dateFont", value: string): void;
   (event: "update:dateFormat", value: "month-day-year" | "month-year"): void;
+  (event: "update:exportFormat", value: "gif" | "webm" | "mp4"): void;
   (event: "export"): void;
 }>();
 
@@ -56,9 +61,16 @@ const downloadDisabled = computed(
   () => controlsDisabled.value || props.isPreparingPreview || props.previewUrl === null,
 );
 
-const downloadButtonLabel = computed(() =>
-  props.isDownloading ? "Downloading GIF…" : "Download GIF",
-);
+const downloadButtonLabel = computed(() => {
+  if (props.isDownloading) {
+    if (props.exportFormat === "gif") return "Downloading GIF…";
+    if (props.exportFormat === "webm") return "Downloading WebM…";
+    return "Downloading MP4…";
+  }
+  if (props.exportFormat === "gif") return "Download GIF";
+  if (props.exportFormat === "webm") return "Download WebM";
+  return "Download MP4";
+});
 
 const isDelayFocused = ref(false);
 const isDurationFocused = ref(false);
@@ -125,7 +137,7 @@ const onFrameDelayBlur = () => {
   isDelayFocused.value = false;
   const numericValue = Number(localFrameDelay.value);
   if (Number.isFinite(numericValue) && numericValue < 20) {
-    showToast(`The GIF must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+    showToast(`The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
   }
   syncFromProps();
 };
@@ -176,7 +188,7 @@ const onDurationBlur = () => {
   isDurationFocused.value = false;
   const numericValue = Number(localDuration.value);
   if (Number.isFinite(numericValue) && numericValue < minDuration.value) {
-    showToast(`The GIF must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+    showToast(`The export must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
   }
   syncFromProps();
 };
@@ -188,12 +200,26 @@ const emitRouteColor = (event: Event) => {
 const emitFlashColor = (event: Event) => {
   emit("update:flashColor", (event.target as HTMLInputElement).value);
 };
+
+const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) => {
+  const newVal = !currentVal;
+  if (type === "city") {
+    emit("update:showCityName", newVal);
+  } else if (type === "distance") {
+    emit("update:showDistance", newVal);
+  } else if (type === "date") {
+    emit("update:showDate", newVal);
+  }
+  if (newVal) {
+    activeTab.value = type;
+  }
+};
 </script>
 
 <template>
   <section class="gif-export-card">
     <div class="gif-export-copy">
-      <h3 class="gif-export-title">Step 4: Prepare GIF</h3>
+      <h3 class="gif-export-title">Step 4: Prepare Export</h3>
       <p class="gif-export-description">
         Preview the animated export on a black background before downloading it.
       </p>
@@ -202,13 +228,24 @@ const emitFlashColor = (event: Event) => {
 
     <div class="gif-preview-shell">
       <div class="gif-preview-stage">
-        <img
-          v-if="previewUrl"
-          class="gif-preview-image"
-          :src="previewUrl"
-          alt="Animated route GIF preview"
-        />
-        <div v-else class="gif-preview-empty">Preview appears here after the GIF is prepared.</div>
+        <template v-if="previewUrl">
+          <video
+            v-if="exportFormat === 'webm' || exportFormat === 'mp4'"
+            class="gif-preview-image"
+            :src="previewUrl"
+            autoplay
+            loop
+            muted
+            playsinline
+          ></video>
+          <img
+            v-else
+            class="gif-preview-image"
+            :src="previewUrl"
+            alt="Animated route preview"
+          />
+        </template>
+        <div v-else class="gif-preview-empty">Preview appears here after the export is prepared.</div>
         <div v-if="isPreparingPreview" class="gif-preview-overlay">Rendering preview…</div>
       </div>
     </div>
@@ -216,6 +253,21 @@ const emitFlashColor = (event: Event) => {
     <div class="general-gif-settings">
       <h4 class="settings-section-title">General Settings</h4>
       <div class="general-settings-grid">
+        <label class="gif-field" v-if="isMovieExportSupported">
+          <span class="gif-field-label">Export format</span>
+          <select
+            class="gif-field-select"
+            :disabled="controlsDisabled"
+            :value="exportFormat"
+            @change="emit('update:exportFormat', ($event.target as HTMLSelectElement).value as 'gif' | 'webm' | 'mp4')"
+          >
+            <option value="gif">GIF (.gif)</option>
+            <option value="webm">WebM Video (.webm)</option>
+            <option value="mp4" v-if="isNativeMp4Supported || isTranscodeAvailable">MP4 Video (.mp4)</option>
+          </select>
+          <span class="gif-field-help">Output file container type.</span>
+        </label>
+
         <label class="gif-field">
           <span class="gif-field-label">Line color</span>
           <div class="gif-color-control">
@@ -295,24 +347,7 @@ const emitFlashColor = (event: Event) => {
               class="toggle-switch-btn"
               :class="{ on: showCityName }"
               :disabled="controlsDisabled"
-              @click.stop="emit('update:showCityName', !showCityName)"
-            >
-              <span class="toggle-switch-slider"></span>
-            </button>
-          </div>
-
-          <div
-            class="overlay-selector-item"
-            :class="{ active: activeTab === 'distance' }"
-            @click="activeTab = 'distance'"
-          >
-            <span class="overlay-item-name">Total Distance</span>
-            <button
-              type="button"
-              class="toggle-switch-btn"
-              :class="{ on: showDistance }"
-              :disabled="controlsDisabled"
-              @click.stop="emit('update:showDistance', !showDistance)"
+              @click.stop="toggleOverlay('city', showCityName)"
             >
               <span class="toggle-switch-slider"></span>
             </button>
@@ -329,7 +364,24 @@ const emitFlashColor = (event: Event) => {
               class="toggle-switch-btn"
               :class="{ on: showDate }"
               :disabled="controlsDisabled"
-              @click.stop="emit('update:showDate', !showDate)"
+              @click.stop="toggleOverlay('date', showDate)"
+            >
+              <span class="toggle-switch-slider"></span>
+            </button>
+          </div>
+
+          <div
+            class="overlay-selector-item"
+            :class="{ active: activeTab === 'distance' }"
+            @click="activeTab = 'distance'"
+          >
+            <span class="overlay-item-name">Total Distance</span>
+            <button
+              type="button"
+              class="toggle-switch-btn"
+              :class="{ on: showDistance }"
+              :disabled="controlsDisabled"
+              @click.stop="toggleOverlay('distance', showDistance)"
             >
               <span class="toggle-switch-slider"></span>
             </button>
@@ -339,7 +391,7 @@ const emitFlashColor = (event: Event) => {
 
       <div class="overlay-details-column">
         <h4 class="settings-section-title">
-          {{ activeTab === 'city' ? 'City Label Settings' : activeTab === 'distance' ? 'Distance Settings' : 'Date Settings' }}
+          {{ activeTab === 'city' ? 'City Label Settings' : activeTab === 'date' ? 'Date Settings' : 'Distance Settings' }}
         </h4>
         <div class="overlay-details-panel">
           <!-- City Label Config -->
@@ -377,53 +429,6 @@ const emitFlashColor = (event: Event) => {
                   :disabled="controlsDisabled"
                   :value="cityPosition"
                   @change="emit('update:cityPosition', ($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="bottom-left">Bottom Left</option>
-                  <option value="bottom-right">Bottom Right</option>
-                  <option value="top-left">Top Left</option>
-                  <option value="top-right">Top Right</option>
-                </select>
-              </label>
-            </div>
-          </div>
-
-          <!-- Total Distance Config -->
-          <div v-show="activeTab === 'distance'" class="details-section">
-            <div class="details-grid">
-              <label class="gif-field">
-                <span class="gif-field-label">Distance unit</span>
-                <select
-                  class="gif-field-select"
-                  :disabled="controlsDisabled"
-                  :value="distanceUnit"
-                  @change="emit('update:distanceUnit', ($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="km">Kilometers (km)</option>
-                  <option value="miles">Miles (mi)</option>
-                </select>
-              </label>
-
-              <label class="gif-field">
-                <span class="gif-field-label">Font style</span>
-                <select
-                  class="gif-field-select"
-                  :disabled="controlsDisabled"
-                  :value="distanceFont"
-                  @change="emit('update:distanceFont', ($event.target as HTMLSelectElement).value)"
-                >
-                  <option value="serif">Serif (Georgia)</option>
-                  <option value="sans-serif">Sans-Serif</option>
-                  <option value="monospace">Monospace</option>
-                </select>
-              </label>
-
-              <label class="gif-field">
-                <span class="gif-field-label">Position</span>
-                <select
-                  class="gif-field-select"
-                  :disabled="controlsDisabled"
-                  :value="distancePosition"
-                  @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
                 >
                   <option value="bottom-left">Bottom Left</option>
                   <option value="bottom-right">Bottom Right</option>
@@ -480,6 +485,53 @@ const emitFlashColor = (event: Event) => {
               </label>
             </div>
           </div>
+          <!-- Total Distance Config -->
+          <div v-show="activeTab === 'distance'" class="details-section">
+            <div class="details-grid">
+              <label class="gif-field">
+                <span class="gif-field-label">Distance unit</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distanceUnit"
+                  @change="emit('update:distanceUnit', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="km">Kilometers (km)</option>
+                  <option value="miles">Miles (mi)</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Font style</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distanceFont"
+                  @change="emit('update:distanceFont', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="serif">Serif (Georgia)</option>
+                  <option value="sans-serif">Sans-Serif</option>
+                  <option value="monospace">Monospace</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Position</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distancePosition"
+                  @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>
