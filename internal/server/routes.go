@@ -601,38 +601,36 @@ func resolveUploadRecord(datasetID string) (uploadRecord, error) {
 }
 
 func listUploadRecords() ([]uploadRecord, error) {
-	uploadDirs, err := uploadSearchDirs()
+	uploadDir, err := uploadDataDir()
 	if err != nil {
 		return nil, err
 	}
 
 	records := make([]uploadRecord, 0)
+	entries, err := os.ReadDir(uploadDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return records, nil
+		}
+		return nil, err
+	}
+
 	seenDatasetIDs := make(map[string]struct{})
-	for _, uploadDir := range uploadDirs {
-		entries, err := os.ReadDir(uploadDir)
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".parquet" || isSimplifiedParquetPath(entry.Name()) {
+			continue
+		}
+
+		record, err := buildUploadRecord(uploadDir, entry)
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
 			return nil, err
 		}
-
-		for _, entry := range entries {
-			if entry.IsDir() || filepath.Ext(entry.Name()) != ".parquet" || isSimplifiedParquetPath(entry.Name()) {
-				continue
-			}
-
-			record, err := buildUploadRecord(uploadDir, entry)
-			if err != nil {
-				return nil, err
-			}
-			if _, seen := seenDatasetIDs[record.dataset.DatasetID]; seen {
-				continue
-			}
-
-			seenDatasetIDs[record.dataset.DatasetID] = struct{}{}
-			records = append(records, record)
+		if _, seen := seenDatasetIDs[record.dataset.DatasetID]; seen {
+			continue
 		}
+
+		seenDatasetIDs[record.dataset.DatasetID] = struct{}{}
+		records = append(records, record)
 	}
 
 	sort.Slice(records, func(i, j int) bool {
@@ -640,32 +638,6 @@ func listUploadRecords() ([]uploadRecord, error) {
 	})
 
 	return records, nil
-}
-
-func uploadSearchDirs() ([]string, error) {
-	primaryDir, err := uploadDataDir()
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(os.Getenv("MAPTOOLS_DATA_DIR")) != "" {
-		return []string{primaryDir}, nil
-	}
-
-	primaryAbs, err := filepath.Abs(primaryDir)
-	if err != nil {
-		return nil, err
-	}
-
-	legacyDir := filepath.Clean("tmp")
-	legacyAbs, err := filepath.Abs(legacyDir)
-	if err != nil {
-		return nil, err
-	}
-	if legacyAbs == primaryAbs {
-		return []string{primaryDir}, nil
-	}
-
-	return []string{primaryDir, legacyDir}, nil
 }
 
 func uploadDataDir() (string, error) {
@@ -814,7 +786,7 @@ func revealPathInFileManager(path string) error {
 
 func nextBulkUploadBaseName(createdAt time.Time) (string, error) {
 	baseName := "bulk_upload_" + createdAt.UTC().Format(time.DateOnly)
-	searchDirs, err := uploadSearchDirs()
+	uploadDir, err := uploadDataDir()
 	if err != nil {
 		return "", err
 	}
@@ -825,28 +797,11 @@ func nextBulkUploadBaseName(createdAt time.Time) (string, error) {
 			candidate = fmt.Sprintf("%s_%d", baseName, suffix)
 		}
 
-		exists, err := uploadFileExists(searchDirs, candidate+".parquet")
-		if err != nil {
-			return "", err
-		}
-		if !exists {
+		path := filepath.Join(uploadDir, candidate+".parquet")
+		if !fileExists(path) {
 			return candidate, nil
 		}
 	}
-}
-
-func uploadFileExists(searchDirs []string, fileName string) (bool, error) {
-	for _, dir := range searchDirs {
-		_, err := os.Stat(filepath.Join(dir, fileName))
-		if err == nil {
-			return true, nil
-		}
-		if !os.IsNotExist(err) {
-			return false, err
-		}
-	}
-
-	return false, nil
 }
 
 func sanitizeUploadFileName(name string) string {

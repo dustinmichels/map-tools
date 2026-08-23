@@ -10,13 +10,25 @@ duckdb = "latest"
 description = "Install DuckDB spatial extension"
 run = "duckdb -c 'INSTALL spatial;'"
 
+[tasks.fmt-oxfmt]
+run = "cd web && bun oxfmt ."
+hide = true
+
+[tasks.fmt-gofmt]
+run = "gofmt -w ."
+hide = true
+
+[tasks.fmt-prettier]
+run = "bun --cwd web prettier --write '../**/*.md'"
+hide = true
+
 [tasks.fmt]
 description = "Format all source code (oxfmt + gofmt + prettier)"
-run = ["cd web && bun oxfmt .", "gofmt -w .", "bun --cwd web prettier --write ../README.md"]
+depends = ["fmt-oxfmt", "fmt-gofmt", "fmt-prettier"]
 
 [tasks.clean]
 description = "Remove build artifacts"
-run = ["rm -rf bin/map-tools web/dist/*", "touch web/dist/.gitkeep"]
+run = ["rm -rf bin/map-tools tmp web/dist/*", "touch web/dist/.gitkeep"]
 
 # --- Build ---
 
