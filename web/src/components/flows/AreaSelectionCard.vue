@@ -59,26 +59,23 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .area-card {
-  gap: 16px;
+  @apply gap-4;
 }
 
 .area-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  @apply flex flex-col gap-2;
 }
 
 .area-title,
 .area-description {
-  margin: 0;
+  @apply m-0;
 }
 
 .area-toolbar {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  align-items: start;
+  @apply grid grid-cols-1 items-start gap-3;
 }
 
 .area-search {
@@ -86,6 +83,6 @@ const emit = defineEmits<{
 }
 
 .area-current {
-  margin-top: 0;
+  @apply mt-0;
 }
 </style>

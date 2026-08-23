@@ -1,4 +1,5 @@
 import { computed, onUnmounted, ref } from "vue";
+import { useLocalStorage } from "@vueuse/core";
 import type { BBox, GeoJSONFeatureCollection } from "../lib/activity";
 import { buildRouteAnimation, isMovieExportSupported, isNativeMp4Supported, type RouteGifProgress } from "../lib/routeGif";
 
@@ -57,8 +58,8 @@ const normalizeFlashColor = (value: string) => {
 
 export function useRouteGifExport() {
   const frameDelayMs = ref(DEFAULT_FRAME_DELAY_MS);
-  const routeColor = ref(DEFAULT_ROUTE_COLOR);
-  const flashColor = ref(DEFAULT_FLASH_COLOR);
+  const routeColor = useLocalStorage("map-route-color", DEFAULT_ROUTE_COLOR);
+  const flashColor = useLocalStorage("map-flash-color", DEFAULT_FLASH_COLOR);
   const previewUrl = ref<string | null>(null);
   const isPreparingPreview = ref(false);
   const isDownloading = ref(false);
@@ -84,12 +85,12 @@ export function useRouteGifExport() {
   const cityNameOverlay = ref("");
   const showDistance = ref(true);
   const distancePosition = ref("bottom-right");
-  const distanceUnit = ref("miles");
+  const distanceUnit = useLocalStorage("map-distance-unit", "miles");
   const distanceFont = ref("monospace");
   const showDate = ref(true);
   const datePosition = ref("bottom-left");
   const dateFont = ref("serif");
-  const dateFormat = ref<"month-day-year" | "month-year">("month-day-year");
+  const dateFormat = useLocalStorage<"month-day-year" | "month-year">("map-date-format", "month-day-year");
   let previewBuildToken = 0;
 
   const revokePreviewUrl = () => {

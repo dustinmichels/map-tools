@@ -160,129 +160,77 @@ const clearInput = () => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .search-container {
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto;
-  z-index: 10;
+  @apply relative z-10 mx-auto w-full max-w-[600px];
 }
 
 .input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
+  @apply relative flex items-center;
 }
 
 .search-input {
-  width: 100%;
-  padding: 12px 48px 12px 16px;
-  font-size: 16px;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 8px;
-  color: #fff;
+  @apply w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 pr-12 text-base text-white shadow-md shadow-black/30;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 }
 
 .search-input:focus {
-  outline: none;
-  border-color: #ff9900;
-  box-shadow:
-    0 0 0 2px rgba(255, 153, 0, 0.2),
-    0 4px 6px rgba(0, 0, 0, 0.3);
+  @apply border-amber-500 outline-none ring-2 ring-amber-500/20;
 }
 
 .input-actions {
-  position: absolute;
-  right: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
+  @apply absolute right-3.5 flex h-full items-center justify-center;
 }
 
 .clear-btn {
-  background: none;
-  border: none;
-  color: #888;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
+  @apply cursor-pointer border-none bg-transparent p-0 text-[20px] leading-none text-zinc-500 transition-colors;
 }
 
 .clear-btn:hover {
-  color: #fff;
+  @apply text-white;
 }
 
 .spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #555;
-  border-top-color: #ff9900;
-  border-radius: 50%;
+  @apply h-[18px] w-[18px] rounded-full border-2 border-zinc-600 border-t-amber-500;
   animation: spin 0.8s linear infinite;
 }
 
 .suggestions-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 4px 0 0;
-  padding: 0;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 8px;
-  list-style: none;
-  max-height: 250px;
-  overflow-y: auto;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
-  z-index: 100;
+  @apply absolute inset-x-0 top-full z-50 mt-1 max-h-[250px] list-none overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-800 p-0 shadow-xl shadow-black/50;
 }
 
 .suggestion-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 12px 16px;
-  cursor: pointer;
-  border-bottom: 1px solid #2a2a2a;
-  transition: background 0.15s;
+  @apply flex cursor-pointer items-start border-b border-zinc-800 px-4 py-3 transition-colors;
 }
 
 .suggestion-item:last-child {
-  border-bottom: none;
+  @apply border-b-0;
 }
 
 .suggestion-item:hover {
-  background: #2a2a2a;
+  @apply bg-zinc-700;
 }
 
 .pin-icon {
-  margin-right: 8px;
-  flex-shrink: 0;
+  @apply mr-2 shrink-0;
 }
 
 .display-name {
-  color: #e0e0e0;
-  font-size: 14px;
-  line-height: 1.4;
-  word-break: break-word;
+  @apply break-words text-sm leading-snug text-zinc-200;
 }
 
 .error-message {
-  margin-top: 8px;
-  color: #ff4444;
+  @apply mt-2 text-red-500;
 }
 
 @keyframes spin {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }

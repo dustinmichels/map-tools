@@ -502,7 +502,7 @@ onUnmounted(() => {
             <p>{{ compareAllRides ? "All uploaded rides" : cityName }}</p>
             <template v-if="!compareAllRides">
               <h4>Bounding Box</h4>
-              <code class="block"
+              <code class="code-block"
                 >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
                 {{ bbox[3].toFixed(4) }}</code
               >
@@ -531,184 +531,131 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .flow-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .compare-upload-grid {
-  display: grid;
+  @apply grid gap-4;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
 }
 
 .compare-upload-column {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .compare-name-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .compare-name-label {
-  font-size: 0.72rem;
-  font-weight: 700;
+  @apply text-[0.72rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #888;
 }
 
 .compare-name-input {
-  background: #111;
-  border: 1px solid #444;
-  border-radius: 8px;
-  color: #fff;
-  padding: 8px 10px;
+  @apply rounded-lg border border-zinc-600 bg-zinc-950 px-2.5 py-2 text-white;
 }
 
 .compare-note {
-  margin: 0;
-  color: #9c9c9c;
+  @apply m-0 text-zinc-400;
 }
 
 .error-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  @apply flex flex-col gap-2.5;
 }
 
 .retry-actions {
-  display: flex;
-  justify-content: center;
+  @apply flex justify-center;
 }
 
 .compare-results-layout {
-  align-items: stretch;
+  @apply items-stretch;
 }
 
 .compare-legend {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 16px;
+  @apply mt-4 flex flex-col gap-2.5;
 }
 
 .legend-row {
-  display: grid;
+  @apply grid items-center gap-2.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5;
   grid-template-columns: auto 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #202020;
-  border: 1px solid #333;
 }
 
 .legend-swatch {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08);
+  @apply h-3.5 w-3.5 rounded-full shadow-[0_0_0_2px_rgba(255,255,255,0.08)];
 }
 
 .legend-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: #d0d0d0;
+  @apply flex flex-col gap-1 text-zinc-300;
 }
 
 .legend-copy strong {
-  color: #fff;
+  @apply text-white;
 }
 
 .legend-copy span {
-  font-size: 0.88rem;
-  color: #a0a0a0;
+  @apply text-[0.88rem] text-zinc-400;
 }
 
 .legend-picker {
-  width: 42px;
-  height: 30px;
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: #111;
-  padding: 4px;
+  @apply h-[30px] w-[42px] rounded-lg border border-zinc-600 bg-zinc-950 p-1;
 }
 
 .compare-scope-toggle {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 10px;
-  background: #202020;
-  border: 1px solid #333;
+  @apply flex items-start gap-2.5 rounded-xl border border-zinc-700 bg-zinc-800 p-3;
 }
 
 .compare-scope-checkbox {
   margin: 3px 0 0;
-  accent-color: #ff9900;
+  accent-color: rgb(245 158 11);
 }
 
 .compare-scope-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply flex flex-col gap-1;
 }
 
 .compare-scope-copy strong {
-  color: #fff;
+  @apply text-white;
 }
 
 .compare-scope-copy span {
-  color: #a0a0a0;
-  font-size: 0.9rem;
+  @apply text-[0.9rem] text-zinc-400;
 }
 
 .centered-banner {
-  text-align: center;
+  @apply text-center;
 }
 
 .compact-lead {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 
 .simplify-prompt {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid #8a5a12;
-  background: rgba(255, 153, 0, 0.1);
+  @apply flex flex-col gap-3 border border-amber-800 bg-amber-500/10;
 }
 
 .simplify-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .simplify-copy h3,
 .simplify-copy p {
-  margin: 0;
+  @apply m-0;
 }
 
 .simplify-copy h3 {
-  color: #ffd180;
+  @apply text-amber-200;
 }
 
 .simplify-copy p {
-  color: #ffcc80;
+  @apply text-amber-300;
 }
 
 .simplify-actions {
-  display: flex;
-  justify-content: flex-start;
+  @apply flex justify-start;
 }
 
 @media (max-width: 900px) {

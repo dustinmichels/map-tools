@@ -554,285 +554,176 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .gif-export-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .gif-export-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .gif-export-title,
 .gif-export-description,
 .gif-export-meta {
-  margin: 0;
+  @apply m-0;
 }
 
 .gif-export-title {
-  color: #fff;
-  font-size: 1rem;
+  @apply text-base text-white;
 }
 
 .gif-export-description {
-  color: #b4b4b4;
-  font-size: 0.92rem;
-  line-height: 1.45;
+  @apply text-[0.92rem] leading-relaxed text-zinc-400;
 }
 
 .gif-export-meta {
-  color: #ffb347;
-  font-size: 0.82rem;
-  font-weight: 600;
+  @apply text-[0.82rem] font-semibold uppercase text-amber-300;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .gif-preview-shell {
-  border-radius: 16px;
-  border: 1px solid #2f2f2f;
-  background: #0c0c0c;
-  padding: 14px;
+  @apply rounded-2xl border border-zinc-800 bg-black/95 p-3.5;
 }
 
 .gif-preview-stage {
   position: relative;
   width: min(100%, 420px);
   aspect-ratio: 1;
-  margin: 0 auto;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #1f1f1f;
-  background: #000;
+  @apply mx-auto overflow-hidden rounded-xl border border-zinc-900 bg-black;
 }
 
 .gif-preview-image,
 .gif-preview-empty,
 .gif-preview-overlay {
-  position: absolute;
-  inset: 0;
+  @apply absolute inset-0;
 }
 
 .gif-preview-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  @apply h-full w-full object-contain;
   image-rendering: auto;
 }
 
 .gif-preview-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  color: #8d8d8d;
-  font-size: 0.92rem;
-  text-align: center;
+  @apply flex items-center justify-center px-6 text-center text-[0.92rem] text-zinc-500;
 }
 
 .gif-preview-overlay {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.66);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 600;
+  @apply flex items-center justify-center bg-black/65 text-[0.95rem] font-semibold text-white;
   letter-spacing: 0.02em;
 }
 
 .settings-section-title {
-  margin: 0 0 10px 0;
-  font-size: 0.82rem;
-  color: #888;
-  text-transform: uppercase;
+  @apply mb-2.5 mt-0 text-[0.82rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
-  font-weight: 700;
 }
 
 .general-gif-settings {
-  border: 1px solid #2f2f2f;
-  background: #0c0c0c;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 4px;
+  @apply mb-1 rounded-xl border border-zinc-800 bg-black/95 p-4;
 }
 
 .general-settings-grid {
-  display: grid;
+  @apply grid gap-3;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
 }
 
 .gif-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .gif-field-label {
-  color: #9a9a9a;
-  font-size: 0.78rem;
-  font-weight: 700;
+  @apply text-[0.78rem] font-bold uppercase text-zinc-400;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .gif-color-control {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  @apply flex items-center gap-3;
 }
 
 .gif-color-input {
-  width: 54px;
-  height: 42px;
-  border: 1px solid #444;
-  border-radius: 10px;
-  background: #0f0f0f;
-  padding: 4px;
+  @apply h-[42px] w-[54px] rounded-[10px] border border-zinc-600 bg-zinc-950 p-1;
 }
 
 .gif-color-value {
-  color: #e6e6e6;
+  @apply text-[0.92rem] text-zinc-100;
   font-family:
-    ui-monospace, SFMono-Regular, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
-  font-size: 0.92rem;
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New",
+    monospace;
 }
 
 .gif-field-input {
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: #0f0f0f;
-  color: #fff;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+  @apply rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2.5 text-[0.95rem] text-white;
 }
 
 .gif-color-input:disabled,
-.gif-field-input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.gif-field-input:disabled,
+.gif-field-select:disabled {
+  @apply cursor-not-allowed opacity-60;
 }
 
 .gif-field-help {
-  color: #888;
-  font-size: 0.82rem;
+  @apply text-[0.82rem] text-zinc-500;
 }
 
 .gif-export-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  @apply flex flex-wrap items-center gap-3;
 }
 
 .gif-export-status {
-  color: #d7d7d7;
-  font-size: 0.9rem;
+  @apply text-[0.9rem] text-zinc-200;
 }
 
 .gif-export-error {
-  margin-top: 0;
+  @apply mt-0;
 }
 
 .overlay-settings-layout {
-  display: flex;
-  gap: 20px;
-  border: 1px solid #2f2f2f;
-  background: #0c0c0c;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 4px;
+  @apply mb-1 flex gap-5 rounded-xl border border-zinc-800 bg-black/95 p-4;
 }
 
 .overlay-selector-column {
-  flex: 1;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  border-right: 1px solid #2f2f2f;
-  padding-right: 20px;
+  @apply flex min-w-[200px] flex-1 flex-col border-r border-zinc-800 pr-5;
 }
 
 .overlay-details-column {
-  flex: 1.5;
-  min-width: 250px;
-  display: flex;
-  flex-direction: column;
+  @apply flex min-w-[250px] flex-[1.5] flex-col;
 }
 
 .overlay-selector-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  @apply flex flex-col gap-2;
 }
 
 .overlay-selector-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #1f1f1f;
-  background: #121212;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
+  @apply flex cursor-pointer items-center justify-between rounded-lg border border-zinc-900 bg-zinc-950 px-3 py-2.5 transition-colors;
 }
 
 .overlay-selector-item:hover {
-  background: #181818;
-  border-color: #333;
+  @apply border-zinc-700 bg-zinc-900;
 }
 
 .overlay-selector-item.active {
-  background: #1e1e1e;
-  border-color: #ff8c00;
+  @apply border-amber-500 bg-zinc-800;
 }
 
 .overlay-item-name {
-  color: #fff;
-  font-weight: 500;
-  font-size: 0.92rem;
+  @apply text-[0.92rem] font-medium text-white;
 }
 
 .toggle-switch-btn {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background-color: #2a2a2a;
-  border-radius: 999px;
-  border: 1px solid #444;
-  cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s;
-  padding: 0;
-  display: flex;
-  align-items: center;
+  @apply relative flex h-6 w-11 items-center rounded-full border border-zinc-600 bg-zinc-800 p-0 transition-colors;
 }
 
 .toggle-switch-btn.on {
-  background-color: #ff8c00;
-  border-color: #ffb347;
+  @apply border-amber-300 bg-amber-500;
 }
 
 .toggle-switch-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  @apply cursor-not-allowed opacity-50;
 }
 
 .toggle-switch-slider {
-  position: absolute;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  background-color: #fff;
-  border-radius: 50%;
-  transition: transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  @apply absolute left-0.5 h-[18px] w-[18px] rounded-full bg-white shadow-sm shadow-black/40 transition-transform;
 }
 
 .toggle-switch-btn.on .toggle-switch-slider {
@@ -840,77 +731,42 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
 }
 
 .overlay-details-panel {
-  background: #121212;
-  border: 1px solid #1f1f1f;
-  border-radius: 8px;
-  padding: 16px;
-  flex: 1;
+  @apply flex-1 rounded-lg border border-zinc-900 bg-zinc-950 p-4;
 }
 
 .details-section {
-  height: 100%;
+  @apply h-full;
 }
 
 .details-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-@media (max-width: 640px) {
-  .overlay-settings-layout {
-    flex-direction: column;
-    gap: 16px;
-  }
-  .overlay-selector-column {
-    border-right: none;
-    border-bottom: 1px solid #2f2f2f;
-    padding-right: 0;
-    padding-bottom: 16px;
-  }
+  @apply flex flex-col gap-3;
 }
 
 .gif-field-select {
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: #0f0f0f;
-  color: #fff;
-  padding: 10px 12px;
-  font-size: 0.95rem;
+  @apply rounded-lg border border-zinc-600 bg-zinc-950 px-3 py-2.5 pr-9 text-[0.95rem] text-white;
   appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 12px center;
   background-size: 16px;
-  padding-right: 36px;
 }
 
-.gif-field-select:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+@media (max-width: 640px) {
+  .overlay-settings-layout {
+    @apply flex-col gap-4;
+  }
+
+  .overlay-selector-column {
+    @apply border-b border-r-0 border-zinc-800 pb-4 pr-0;
+  }
 }
 
 .toast-warning {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background-color: #1a0f02;
-  border: 1px solid #ff8c00;
-  color: #ffb74d;
-  padding: 12px 18px;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  font-weight: 500;
-  font-size: 0.92rem;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  max-width: 420px;
+  @apply fixed bottom-6 right-6 z-[9999] flex max-w-[420px] items-center gap-2.5 rounded-lg border border-amber-500 bg-amber-950/80 px-[18px] py-3 text-[0.92rem] font-medium text-amber-300 shadow-2xl shadow-black/60;
 }
 
 .toast-icon {
-  font-size: 1.1rem;
+  @apply text-[1.1rem];
 }
 
 .toast-enter-active,
@@ -923,5 +779,4 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
   transform: translateY(20px) scale(0.95);
   opacity: 0;
 }
-
 </style>

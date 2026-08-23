@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, useSlots } from "vue";
+import { useDropZone } from "@vueuse/core";
 import { formatFileSize } from "../../lib/activity";
 
 const props = withDefaults(
@@ -37,17 +38,18 @@ const emit = defineEmits<{
 }>();
 
 const slots = useSlots();
-const isDragging = ref(false);
+const dropZoneRef = ref<HTMLDivElement>();
+const { isOverDropZone } = useDropZone(dropZoneRef, (files) => {
+  if (files) {
+    emit("selectFile", files[0] ?? null);
+  }
+});
 
 const fileListChanged = (event: Event) => {
   const target = event.target as HTMLInputElement;
   emit("selectFile", target.files?.[0] ?? null);
 };
 
-const droppedFile = (event: DragEvent) => {
-  isDragging.value = false;
-  emit("selectFile", event.dataTransfer?.files?.[0] ?? null);
-};
 </script>
 
 <template>
@@ -72,11 +74,9 @@ const droppedFile = (event: DragEvent) => {
     </div>
 
     <div
+      ref="dropZoneRef"
       class="upload-zone"
-      :class="{ dragging: isDragging }"
-      @dragover.prevent="isDragging = true"
-      @dragleave.prevent="isDragging = false"
-      @drop.prevent="droppedFile"
+      :class="{ dragging: isOverDropZone }"
     >
       <input type="file" accept=".zip" class="file-input" @change="fileListChanged" />
       <label class="upload-label">
@@ -117,73 +117,53 @@ const droppedFile = (event: DragEvent) => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .upload-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  @apply flex flex-col gap-3.5;
 }
 
 .upload-card-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-3.5;
 }
 
 .upload-card-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  @apply flex flex-col gap-2;
 }
 
 .upload-card-copy h3,
 .upload-card-copy p {
-  margin: 0;
+  @apply m-0;
 }
 
 .source-selection {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  @apply flex flex-col gap-2.5;
 }
 
 .color-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  @apply flex flex-col gap-1.5 text-[0.72rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #888;
 }
 
 .color-control input {
-  width: 46px;
-  height: 32px;
-  border: 1px solid #444;
-  border-radius: 8px;
-  background: #111;
-  padding: 4px;
+  @apply h-8 w-[46px] rounded-lg border border-zinc-600 bg-zinc-950 p-1;
 }
 
 .upload-success {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply flex flex-col gap-1;
 }
 
 .upload-action {
-  align-self: flex-start;
+  @apply self-start;
 }
 
 @media (max-width: 700px) {
   .upload-card-head {
-    flex-direction: column;
+    @apply flex-col;
   }
 
   .upload-action {
-    width: 100%;
+    @apply w-full;
   }
 }
 </style>

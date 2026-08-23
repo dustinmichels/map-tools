@@ -219,117 +219,78 @@ const submitRename = (datasetId: string) => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .upload-library {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  @apply flex flex-col gap-3.5;
 }
 
 .upload-library-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-3.5;
 }
 
 .upload-library-head h3 {
-  margin: 0 0 6px;
-  color: #fff;
+  @apply mb-1.5 mt-0 text-white;
 }
 
 .upload-library-head p {
-  margin: 0;
-  color: #b0b0b0;
-  line-height: 1.45;
+  @apply m-0 leading-relaxed text-zinc-400;
 }
 
 .sort-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
+  @apply flex flex-col gap-1.5 text-[0.72rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #888;
 }
 
 .sort-control select,
 .rename-input {
-  background: #111;
-  border: 1px solid #444;
-  border-radius: 8px;
-  color: #fff;
-  padding: 8px 10px;
+  @apply rounded-lg border border-zinc-600 bg-zinc-950 px-2.5 py-2 text-white;
 }
 
 .upload-empty {
-  margin: 0;
-  color: #888;
+  @apply m-0 text-zinc-500;
 }
+
 .upload-geometry-status {
-  font-size: 0.8rem;
+  @apply text-[0.8rem];
 }
 
 .upload-geometry-status-ready {
-  color: #81c784;
+  @apply text-green-300;
 }
 
 .upload-geometry-status-pending {
-  color: #ffb74d;
+  @apply text-amber-300;
 }
 
 .upload-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 380px;
-  overflow-y: auto;
+  @apply flex max-h-[380px] flex-col gap-2.5 overflow-y-auto;
 }
 
 .upload-row {
-  display: grid;
+  @apply grid gap-3.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3.5 py-3;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #202020;
-  border: 1px solid #333;
 }
 
 .upload-row.selected {
-  border-color: #ff9900;
-  box-shadow: inset 0 0 0 1px rgba(255, 153, 0, 0.2);
+  @apply border-amber-500 shadow-[inset_0_0_0_1px_rgba(245,158,11,0.2)];
 }
 
 .upload-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  @apply flex min-w-0 flex-col gap-1.5;
 }
 
 .upload-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  @apply flex flex-wrap items-center gap-2;
 }
 
 .upload-title-row strong {
-  color: #fff;
+  @apply text-white;
 }
 
 .selected-pill {
-  border-radius: 999px;
-  padding: 3px 9px;
-  background: rgba(255, 153, 0, 0.12);
-  border: 1px solid rgba(255, 153, 0, 0.4);
-  color: #ffb347;
-  font-size: 0.7rem;
-  font-weight: 700;
+  @apply rounded-full border border-amber-400/40 bg-amber-500/10 px-[9px] py-[3px] text-[0.7rem] font-bold uppercase text-amber-300;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .upload-copy code {
@@ -339,19 +300,11 @@ const submitRename = (datasetId: string) => {
 }
 
 .upload-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  color: #a0a0a0;
-  font-size: 0.88rem;
+  @apply flex flex-wrap gap-2.5 text-[0.88rem] text-zinc-400;
 }
 
 .upload-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
+  @apply flex flex-wrap items-center justify-end gap-2;
 }
 
 .edit-actions {
@@ -363,23 +316,19 @@ const submitRename = (datasetId: string) => {
 }
 
 .btn-danger {
-  border-color: rgba(211, 47, 47, 0.55);
-  color: #ef5350;
+  @apply border-red-600/60 text-red-400;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: rgba(211, 47, 47, 0.12);
-  border-color: #d32f2f;
+  @apply border-red-600 bg-red-600/10;
 }
 
 .manage-link-copy {
-  margin: 0;
-  color: #888;
+  @apply m-0 text-zinc-500;
 }
 
 .show-more-container {
-  display: flex;
-  justify-content: center;
+  @apply flex justify-center;
 }
 
 @media (max-width: 900px) {
@@ -389,7 +338,7 @@ const submitRename = (datasetId: string) => {
 
   .upload-actions,
   .edit-actions {
-    justify-content: flex-start;
+    @apply justify-start;
   }
 
   .rename-input {

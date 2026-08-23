@@ -697,70 +697,38 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .map-wrapper {
-  position: relative;
-  width: 100%;
-  height: 550px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #333;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  @apply relative h-[550px] w-full overflow-hidden rounded-xl border border-zinc-700 shadow-2xl shadow-black/40;
 }
 
 .map-container {
-  width: 100%;
-  height: 100%;
+  @apply h-full w-full;
 }
 
 .map-loading {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  background: #111;
-  color: #888;
-  font-size: 13px;
-  z-index: 10;
+  @apply absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-zinc-950 text-[13px] text-zinc-500;
 }
 
 .map-error-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: #1a1515;
-  color: #ff9999;
-  font-size: 13px;
-  z-index: 10;
-  padding: 24px;
-  text-align: center;
+  @apply absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-red-950/30 px-6 text-center text-[13px] text-red-300;
 }
 
 .error-icon {
-  font-size: 32px;
-  margin-bottom: 4px;
+  @apply mb-1 text-[32px];
 }
 
 .error-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #ff5555;
+  @apply text-base font-semibold text-red-500;
 }
 
 .error-msg {
-  color: #b39999;
-  max-width: 400px;
-  line-height: 1.5;
+  @apply max-w-[400px] leading-relaxed text-red-200/70;
 }
 
 .spinner {
-  color: #ff9900;
+  @apply text-amber-500;
   animation: spin 1s linear infinite;
 }
 
@@ -768,6 +736,7 @@ onUnmounted(() => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -782,76 +751,43 @@ onUnmounted(() => {
 }
 
 .map-actions {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 5;
+  @apply absolute bottom-3 left-3 z-[5];
 }
 
 .fit-btn {
-  background: #1e1e1e;
-  color: #fff;
-  border: 1px solid #444;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
+  @apply flex cursor-pointer items-center gap-1.5 rounded-md border border-zinc-600 bg-zinc-800 px-3 py-2 text-[13px] font-medium text-white shadow-md shadow-black/50 transition-colors;
 }
 
 .fit-btn:hover {
-  background: #2a2a2a;
-  border-color: #ff9900;
+  @apply border-amber-500 bg-zinc-700;
 }
 
-:deep(.route-tooltip-popup .maplibregl-popup-content) {
-  padding: 0;
-  border: 1px solid #333;
-  border-radius: 10px;
-  background: #111;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+::deep(.route-tooltip-popup .maplibregl-popup-content) {
+  @apply rounded-xl border border-zinc-700 bg-zinc-950 p-0 shadow-2xl shadow-black/45;
 }
 
-:deep(.route-tooltip-popup .maplibregl-popup-tip) {
-  border-top-color: #333;
+::deep(.route-tooltip-popup .maplibregl-popup-tip) {
+  border-top-color: rgb(63 63 70);
 }
 
-:deep(.route-tooltip-card) {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 170px;
-  padding: 10px 12px;
+::deep(.route-tooltip-card) {
+  @apply flex min-w-[170px] flex-col gap-2 px-3 py-2.5;
 }
 
-:deep(.route-tooltip-row) {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+::deep(.route-tooltip-row) {
+  @apply flex justify-between gap-3;
 }
 
-:deep(.route-tooltip-label) {
-  color: #9a9a9a;
-  font-size: 0.72rem;
-  font-weight: 700;
+::deep(.route-tooltip-label) {
+  @apply text-[0.72rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
-:deep(.route-tooltip-value) {
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
+::deep(.route-tooltip-value) {
+  @apply text-[0.9rem] font-semibold text-white;
 }
 
-:deep(.mapboxgl-marker) {
+::deep(.mapboxgl-marker) {
   z-index: 10;
 }
 </style>

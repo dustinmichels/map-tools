@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
+import { useDropZone } from "@vueuse/core";
 import { formatFileSize } from "../../lib/activity";
 
 const props = defineProps<{
@@ -14,7 +15,12 @@ const emit = defineEmits<{
   upload: [];
 }>();
 
-const isDragging = ref(false);
+const dropZoneRef = ref<HTMLDivElement>();
+const { isOverDropZone } = useDropZone(dropZoneRef, (files) => {
+  if (files) {
+    selectFiles(files);
+  }
+});
 
 const selectedFilesLabel = computed(() => {
   if (!props.selectedFiles.length) {
@@ -29,7 +35,7 @@ const selectedFilesLabel = computed(() => {
   return `${props.selectedFiles.length} ZIP files selected`;
 });
 
-const selectFiles = (files: FileList | null) => {
+const selectFiles = (files: FileList | File[] | null) => {
   emit("selectFiles", files ? Array.from(files) : []);
 };
 
@@ -38,10 +44,6 @@ const fileListChanged = (event: Event) => {
   selectFiles(target.files);
 };
 
-const droppedFiles = (event: DragEvent) => {
-  isDragging.value = false;
-  selectFiles(event.dataTransfer?.files ?? null);
-};
 </script>
 
 <template>
@@ -54,11 +56,9 @@ const droppedFiles = (event: DragEvent) => {
     </div>
 
     <div
+      ref="dropZoneRef"
       class="upload-zone"
-      :class="{ dragging: isDragging }"
-      @dragover.prevent="isDragging = true"
-      @dragleave.prevent="isDragging = false"
-      @drop.prevent="droppedFiles"
+      :class="{ dragging: isOverDropZone }"
     >
       <input type="file" accept=".zip" multiple class="file-input" @change="fileListChanged" />
       <label class="upload-label">
@@ -97,64 +97,44 @@ const droppedFiles = (event: DragEvent) => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .upload-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  @apply flex flex-col gap-3.5;
 }
 
 .upload-card-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-3.5;
 }
 
 .upload-card-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  @apply flex flex-col gap-2;
 }
 
 .upload-card-copy h2,
 .upload-card-copy p {
-  margin: 0;
+  @apply m-0;
 }
 
 .selected-file-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  @apply m-0 flex list-none flex-col gap-2 p-0;
 }
 
 .selected-file-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #202020;
-  border: 1px solid #333;
-  color: #d0d0d0;
-  font-size: 0.92rem;
+  @apply flex justify-between gap-3 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-[0.92rem] text-zinc-300;
 }
 
 .upload-success {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply flex flex-col gap-1;
 }
 
 .upload-action {
-  align-self: flex-start;
+  @apply self-start;
 }
 
 @media (max-width: 700px) {
   .upload-action {
-    width: 100%;
+    @apply w-full;
   }
 }
 </style>

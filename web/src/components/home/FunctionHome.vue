@@ -133,141 +133,100 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .home-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .home-panel {
-  padding: 20px 22px;
+  @apply p-5;
 }
 
 .home-bar {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-5;
 }
 
 .home-bar-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-width: 720px;
+  @apply flex max-w-[720px] flex-col gap-2;
 }
 
 .section-label,
 .tool-eyebrow {
-  font-size: 0.72rem;
-  font-weight: 700;
+  @apply text-[0.72rem] font-bold uppercase text-amber-500;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #ff9900;
 }
 
 .home-bar h2,
 .panel-header h3,
 .workflow-head h4 {
-  margin: 0;
-  color: #fff;
+  @apply m-0 text-white;
 }
 
 .home-copy,
 .tool-summary {
-  margin: 0;
+  @apply m-0;
 }
 
 .home-workbench {
-  display: grid;
+  @apply grid gap-4;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: 16px;
 }
 
 .upload-panel,
 .workflow-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .panel-header,
 .workflow-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-4;
 }
 
 .panel-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .panel-chip {
-  border: 1px solid #3d3d3d;
-  border-radius: 999px;
-  padding: 6px 10px;
-  color: #d0d0d0;
-  font-size: 0.74rem;
-  white-space: nowrap;
+  @apply whitespace-nowrap rounded-full border border-zinc-700 px-2.5 py-1.5 text-[0.74rem] text-zinc-300;
 }
 
 .workflow-list {
-  display: flex;
-  flex-direction: column;
+  @apply flex flex-col;
 }
 
 .workflow-row + .workflow-row {
-  border-top: 1px solid #2b2b2b;
-  margin-top: 16px;
-  padding-top: 16px;
+  @apply mt-4 border-t border-zinc-800 pt-4;
 }
 
 .workflow-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  @apply flex flex-col gap-3;
 }
 
 .badge-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  @apply m-0 flex list-none flex-wrap gap-2 p-0;
 }
 
 .badge-list li {
-  border: 1px solid #333;
-  background: #202020;
-  border-radius: 999px;
-  padding: 6px 10px;
-  color: #c9c9c9;
-  font-size: 0.78rem;
-  line-height: 1;
+  @apply rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-[0.78rem] leading-none text-zinc-300;
 }
 
 .compact-badges li,
 .overview-list li {
-  font-size: 0.74rem;
+  @apply text-[0.74rem];
 }
 
 .tool-eyebrow {
-  display: block;
-  margin-bottom: 6px;
+  @apply mb-1.5 block;
 }
 
 .action-button,
 .workflow-action {
-  padding: 9px 14px;
-  min-width: 112px;
+  @apply min-w-[112px] px-3.5 py-[9px];
 }
 
 .workflow-action {
-  flex-shrink: 0;
+  @apply shrink-0;
 }
 
 @media (max-width: 980px) {
@@ -278,16 +237,16 @@ const overviewBadges = ["Upload once", "Pick a map function", "Export from saved
 
 @media (max-width: 720px) {
   .home-panel {
-    padding: 18px;
+    @apply p-4;
   }
 
   .home-bar,
   .workflow-head {
-    flex-direction: column;
+    @apply flex-col;
   }
 
   .workflow-action {
-    width: 100%;
+    @apply w-full;
   }
 }
 </style>

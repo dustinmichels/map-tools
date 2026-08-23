@@ -137,52 +137,42 @@ onMounted(() => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .upload-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .hero-kicker {
-  font-size: 0.72rem;
-  font-weight: 700;
+  @apply text-[0.72rem] font-bold uppercase text-amber-500;
   letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #ff9900;
 }
 
 .export-guide,
 .upload-library-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  @apply flex flex-col gap-3;
 }
 
 .guide-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: flex-start;
+  @apply flex items-start justify-between gap-3;
 }
 
 .guide-head h3,
 .guide-copy {
-  margin: 0;
+  @apply m-0;
 }
 
 .guide-steps {
-  margin: 0;
-  padding-left: 18px;
-  line-height: 1.55;
+  @apply m-0 pl-[18px] leading-relaxed;
 }
 
 .guide-steps li + li {
-  margin-top: 7px;
+  @apply mt-[7px];
 }
 
 @media (max-width: 720px) {
   .guide-head {
-    flex-direction: column;
+    @apply flex-col;
   }
 }
 </style>

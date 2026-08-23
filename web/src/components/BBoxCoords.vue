@@ -155,120 +155,77 @@ const copyToClipboard = async () => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .bbox-coords {
-  margin-top: 12px;
-  padding: 8px 10px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  @apply mt-3 rounded border border-white/10 bg-black/25 px-2.5 py-2;
 }
 
 .coords-title {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #888;
-  margin-bottom: 6px;
-  text-transform: uppercase;
+  @apply mb-1.5 text-xs font-semibold uppercase text-zinc-500;
   letter-spacing: 0.05em;
 }
 
 .coords-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  @apply grid grid-cols-2 gap-3;
 }
 
 .coords-col {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply flex flex-col gap-1;
 }
 
 .coords-row {
-  display: flex;
-  justify-content: space-between;
-  font-family: monospace;
-  font-size: 0.8rem;
+  @apply flex justify-between font-mono text-[0.8rem];
 }
 
 .coord-label {
-  color: #aaa;
-  margin-right: 4px;
+  @apply mr-1 text-zinc-400;
 }
 
 .coord-value {
-  color: #ff9900;
-  font-weight: 600;
+  @apply font-semibold text-amber-500;
 }
 
 .coords-input-section {
-  margin-top: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  @apply mt-2.5 flex flex-col gap-1;
 }
 
 .coords-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
+  @apply relative flex w-full items-center;
 }
 
 .coords-input {
-  width: 100%;
-  padding: 6px 30px 6px 8px;
-  font-family: monospace;
-  font-size: 0.72rem;
-  background: #1e1e1e;
-  border: 1px solid #333;
-  border-radius: 4px;
-  color: #fff;
+  @apply w-full rounded border border-zinc-700 bg-zinc-800 px-2 py-1.5 pr-8 font-mono text-[0.72rem] text-white;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
 }
 
 .coords-input:focus {
-  outline: none;
-  border-color: #ff9900;
-  box-shadow: 0 0 0 2px rgba(255, 153, 0, 0.2);
+  @apply border-amber-500 outline-none ring-2 ring-amber-500/20;
 }
 
 .coords-input-error {
-  border-color: #ff4444 !important;
-  box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.2) !important;
+  @apply border-red-500 ring-2 ring-red-500/20;
 }
 
 .coords-copy-btn {
-  position: absolute;
-  right: 4px;
-  background: none;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.15s;
+  @apply absolute right-1 flex items-center justify-center border-none bg-transparent p-1 text-zinc-400 transition-colors;
 }
 
 .coords-copy-btn:hover {
-  color: #ff9900;
+  @apply text-amber-500;
 }
 
 .coords-copy-btn .copy-icon {
-  width: 14px;
-  height: 14px;
+  @apply h-[14px] w-[14px];
 }
 
 .coords-copy-btn .text-success {
-  color: #22c55e;
+  @apply text-green-500;
 }
 
 .coords-error-text {
-  font-size: 0.68rem;
-  color: #ff4444;
+  @apply text-[0.68rem] text-red-500;
 }
 </style>

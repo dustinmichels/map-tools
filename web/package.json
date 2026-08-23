@@ -9,16 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vueuse/core": "^14.4.0",
     "gifenc": "^1.0.3",
+    "lucide": "^1.33.0",
     "lucide-vue-next": "^1.0.0",
-    "maplibre-gl": "^6.4.1",
+    "maplibre-gl": "^6.5.0",
     "vue": "^3.5.41",
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^5.2.4",
     "oxfmt": "^0.64.0",
     "prettier": "^3.9.6",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
     "vue-tsc": "^2.2.12"

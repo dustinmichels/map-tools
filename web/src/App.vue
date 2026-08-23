@@ -68,50 +68,26 @@ const onSelectTool = (tool: string) => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .app-layout {
-  max-width: 1180px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 18px 16px 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+  @apply mx-auto flex w-full max-w-[1180px] flex-col gap-[18px] px-4 pb-7 pt-[18px];
 }
 
 .app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-bottom: 1px solid #222;
-  padding-bottom: 12px;
-  flex-wrap: wrap;
-  gap: 12px;
+  @apply flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-3;
 }
 
 .header-main {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  border: 1px solid transparent;
-  padding: 4px 8px;
-  margin: -4px -8px;
-  border-radius: 6px;
-  transition:
-    border-color 0.2s,
-    background-color 0.2s;
+  @apply -m-1 flex cursor-pointer items-center gap-3 rounded-md border border-transparent px-2 py-1 transition-colors;
 }
 
 .header-main:hover {
-  border-color: #3c3c3c;
-  background-color: #1a1a1a;
+  @apply border-zinc-700 bg-zinc-900;
 }
 
 .header-side {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  @apply flex flex-wrap items-center gap-2.5;
 }
 
 .logo {
@@ -120,53 +96,40 @@ const onSelectTool = (tool: string) => {
 }
 
 .app-header h1 {
-  font-size: 1.72rem;
-  margin: 0 0 2px;
-  font-weight: 700;
-  color: #fff;
+  @apply mb-0.5 mt-0 text-[1.72rem] font-bold text-white;
 }
 
 .tagline {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #9f9f9f;
+  @apply m-0 text-[0.9rem] text-zinc-400;
 }
 
 .api-badge {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: #181818;
-  border: 1px solid #333;
-  color: #aaa;
+  @apply rounded-full border border-zinc-700 bg-zinc-900 px-2.5 py-[5px] text-xs text-zinc-400;
 }
 
 .api-badge.ok code {
-  color: #44bb44;
+  @apply text-green-500;
 }
 
 .api-badge.unreachable code {
-  color: #ff4444;
+  @apply text-red-500;
 }
 
 .app-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 @media (max-width: 720px) {
   .app-layout {
-    padding: 14px 12px 22px;
+    @apply px-3 pb-[22px] pt-[14px];
   }
 
   .app-header {
-    align-items: flex-start;
+    @apply items-start;
   }
 
   .header-side {
-    width: 100%;
-    justify-content: flex-start;
+    @apply w-full justify-start;
   }
 }
 </style>

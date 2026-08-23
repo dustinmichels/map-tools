@@ -460,7 +460,7 @@ onUnmounted(() => {
             <h4>Location</h4>
             <p>{{ cityName }}</p>
             <h4>Bounding Box</h4>
-            <code class="block"
+            <code class="code-block"
               >{{ bbox[0].toFixed(4) }}, {{ bbox[1].toFixed(4) }}, {{ bbox[2].toFixed(4) }},
               {{ bbox[3].toFixed(4) }}</code
             >
@@ -523,112 +523,74 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+@reference "tailwindcss";
+
 .flow-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  @apply flex flex-col gap-4;
 }
 
 .centered-banner {
-  text-align: center;
+  @apply text-center;
 }
 
 .compact-lead {
-  margin-bottom: 0;
+  @apply mb-0;
 }
 
 .simplify-prompt {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  border: 1px solid #8a5a12;
-  background: rgba(255, 153, 0, 0.1);
+  @apply flex flex-col gap-3 border border-amber-800 bg-amber-500/10;
 }
 
 .simplify-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  @apply flex flex-col gap-1.5;
 }
 
 .simplify-copy h3,
 .simplify-copy p {
-  margin: 0;
+  @apply m-0;
 }
 
 .simplify-copy h3 {
-  color: #ffd180;
+  @apply text-amber-200;
 }
 
 .simplify-copy p {
-  color: #ffcc80;
+  @apply text-amber-300;
 }
 
 .simplify-actions {
-  display: flex;
-  justify-content: flex-start;
+  @apply flex justify-start;
 }
 
 .geometry-panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid #2f2f2f;
-  background: #181818;
+  @apply flex flex-wrap items-start justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3.5;
 }
 
 .geometry-panel-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  @apply flex flex-col gap-2.5;
 }
 
 .geometry-toggle {
-  display: inline-flex;
-  gap: 8px;
+  @apply inline-flex gap-2;
 }
 
 .geometry-toggle-button {
-  border: 1px solid #444;
-  background: #111;
-  color: #d0d0d0;
-  border-radius: 999px;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    background 0.15s,
-    color 0.15s;
+  @apply cursor-pointer rounded-full border border-zinc-600 bg-zinc-950 px-3 py-2 text-zinc-300 transition-colors;
 }
 
 .geometry-toggle-button.active {
-  border-color: #ff9900;
-  background: rgba(255, 153, 0, 0.15);
-  color: #fff;
+  @apply border-amber-500 bg-amber-500/15 text-white;
 }
 
 .geometry-toggle-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+  @apply cursor-not-allowed opacity-60;
 }
 
 .geometry-note {
-  margin: 0;
-  color: #a8a8a8;
-  font-size: 0.92rem;
+  @apply m-0 text-[0.92rem] text-zinc-400;
 }
 
 .geometry-status {
-  border: 1px solid #8a5a12;
-  border-radius: 999px;
-  padding: 6px 10px;
-  background: rgba(255, 153, 0, 0.12);
-  color: #ffd180;
-  font-size: 0.82rem;
-  white-space: nowrap;
+  @apply whitespace-nowrap rounded-full border border-amber-800 bg-amber-500/10 px-2.5 py-1.5 text-[0.82rem] text-amber-200;
 }
 </style>
