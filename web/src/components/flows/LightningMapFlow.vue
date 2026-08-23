@@ -61,6 +61,11 @@ const {
   showDistance,
   distancePosition,
   distanceUnit,
+  distanceFont,
+  showDate,
+  datePosition,
+  dateFont,
+  dateFormat,
   updateFrameDelayMs,
   updateRouteColor,
   updateFlashColor,
@@ -177,7 +182,23 @@ watch(geometryMode, () => {
 });
 
 watch(
-  [routeColor, flashColor, frameDelayMs, showCityName, cityFont, cityPosition, cityNameOverlay, showDistance, distancePosition, distanceUnit],
+  [
+    routeColor,
+    flashColor,
+    frameDelayMs,
+    showCityName,
+    cityFont,
+    cityPosition,
+    cityNameOverlay,
+    showDistance,
+    distancePosition,
+    distanceUnit,
+    distanceFont,
+    showDate,
+    datePosition,
+    dateFont,
+    dateFormat,
+  ],
   (_, __, onCleanup) => {
     if (currentStep.value !== 4 || !hasAvailableRoutes.value || dataset.isFiltering.value) {
       return;
@@ -488,6 +509,11 @@ onUnmounted(() => {
         v-model:show-distance="showDistance"
         v-model:distance-position="distancePosition"
         v-model:distance-unit="distanceUnit"
+        v-model:distance-font="distanceFont"
+        v-model:show-date="showDate"
+        v-model:date-position="datePosition"
+        v-model:date-font="dateFont"
+        v-model:date-format="dateFormat"
         @update:route-color="updateRouteColor"
         @update:flash-color="updateFlashColor"
         @update:frame-delay-ms="updateFrameDelayMs"

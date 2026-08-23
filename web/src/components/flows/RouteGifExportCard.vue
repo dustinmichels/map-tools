@@ -19,8 +19,12 @@ const props = defineProps<{
   showDistance: boolean;
   distancePosition: string;
   distanceUnit: string;
+  distanceFont: string;
+  showDate: boolean;
+  datePosition: string;
+  dateFont: string;
+  dateFormat: "month-day-year" | "month-year";
 }>();
-
 const emit = defineEmits<{
   (event: "update:routeColor", value: string): void;
   (event: "update:flashColor", value: string): void;
@@ -32,6 +36,11 @@ const emit = defineEmits<{
   (event: "update:showDistance", value: boolean): void;
   (event: "update:distancePosition", value: string): void;
   (event: "update:distanceUnit", value: string): void;
+  (event: "update:distanceFont", value: string): void;
+  (event: "update:showDate", value: boolean): void;
+  (event: "update:datePosition", value: string): void;
+  (event: "update:dateFont", value: string): void;
+  (event: "update:dateFormat", value: "month-day-year" | "month-year"): void;
   (event: "export"): void;
 }>();
 
@@ -56,6 +65,7 @@ const isDurationFocused = ref(false);
 
 const localFrameDelay = ref("");
 const localDuration = ref("");
+const activeTab = ref<"city" | "distance" | "date">("city");
 
 const formatDuration = (delay: number) => {
   if (props.routeCount === 0) {
@@ -203,158 +213,276 @@ const emitFlashColor = (event: Event) => {
       </div>
     </div>
 
-    <div class="gif-export-controls">
-      <label class="gif-field">
-        <span class="gif-field-label">Line color</span>
-        <div class="gif-color-control">
+    <div class="general-gif-settings">
+      <h4 class="settings-section-title">General Settings</h4>
+      <div class="general-settings-grid">
+        <label class="gif-field">
+          <span class="gif-field-label">Line color</span>
+          <div class="gif-color-control">
+            <input
+              class="gif-color-input"
+              type="color"
+              :disabled="controlsDisabled"
+              :value="routeColor"
+              @input="emitRouteColor"
+            />
+            <span class="gif-color-value">{{ routeColor.toUpperCase() }}</span>
+          </div>
+        </label>
+
+        <label class="gif-field">
+          <span class="gif-field-label">Flash color</span>
+          <div class="gif-color-control">
+            <input
+              class="gif-color-input"
+              type="color"
+              :disabled="controlsDisabled"
+              :value="flashColor"
+              @input="emitFlashColor"
+            />
+            <span class="gif-color-value">{{ flashColor.toUpperCase() }}</span>
+          </div>
+        </label>
+
+        <label class="gif-field">
+          <span class="gif-field-label">Frame delay (ms)</span>
           <input
-            class="gif-color-input"
-            type="color"
+            class="gif-field-input"
+            type="number"
+            min="20"
+            max="5000"
+            step="5"
             :disabled="controlsDisabled"
-            :value="routeColor"
-            @input="emitRouteColor"
+            :value="localFrameDelay"
+            @input="onFrameDelayInput"
+            @focus="onFrameDelayFocus"
+            @blur="onFrameDelayBlur"
           />
-          <span class="gif-color-value">{{ routeColor.toUpperCase() }}</span>
-        </div>
-      </label>
+          <span class="gif-field-help">Lower values add rides faster.</span>
+        </label>
 
-      <label class="gif-field">
-        <span class="gif-field-label">Flash color</span>
-        <div class="gif-color-control">
+        <label class="gif-field">
+          <span class="gif-field-label">Total duration (s)</span>
           <input
-            class="gif-color-input"
-            type="color"
-            :disabled="controlsDisabled"
-            :value="flashColor"
-            @input="emitFlashColor"
+            class="gif-field-input"
+            type="number"
+            :min="minDuration"
+            :max="maxDuration"
+            step="0.1"
+            :disabled="controlsDisabled || routeCount <= 1"
+            :value="localDuration"
+            @input="onDurationInput"
+            @focus="onDurationFocus"
+            @blur="onDurationBlur"
           />
-          <span class="gif-color-value">{{ flashColor.toUpperCase() }}</span>
-        </div>
-      </label>
-
-      <label class="gif-field">
-        <span class="gif-field-label">Frame delay (ms)</span>
-        <input
-          class="gif-field-input"
-          type="number"
-          min="20"
-          max="5000"
-          step="5"
-          :disabled="controlsDisabled"
-          :value="localFrameDelay"
-          @input="onFrameDelayInput"
-          @focus="onFrameDelayFocus"
-          @blur="onFrameDelayBlur"
-        />
-        <span class="gif-field-help">Lower values add rides faster.</span>
-      </label>
-
-      <label class="gif-field">
-        <span class="gif-field-label">Total duration (s)</span>
-        <input
-          class="gif-field-input"
-          type="number"
-          :min="minDuration"
-          :max="maxDuration"
-          step="0.1"
-          :disabled="controlsDisabled || routeCount <= 1"
-          :value="localDuration"
-          @input="onDurationInput"
-          @focus="onDurationFocus"
-          @blur="onDurationBlur"
-        />
-        <span class="gif-field-help">Time to draw all routes.</span>
-      </label>
-
-      <label class="gif-field gif-checkbox-field">
-        <input
-          type="checkbox"
-          :disabled="controlsDisabled"
-          :checked="showCityName"
-          @change="emit('update:showCityName', ($event.target as HTMLInputElement).checked)"
-        />
-        <span class="gif-field-label">City label</span>
-      </label>
-
-      <label v-if="showCityName" class="gif-field">
-        <span class="gif-field-label">City label text</span>
-        <input
-          class="gif-field-input"
-          type="text"
-          :disabled="controlsDisabled"
-          :value="cityNameOverlay"
-          @input="emit('update:cityNameOverlay', ($event.target as HTMLInputElement).value)"
-        />
-      </label>
-
-      <label v-if="showCityName" class="gif-field">
-        <span class="gif-field-label">Font style</span>
-        <select
-          class="gif-field-select"
-          :disabled="controlsDisabled"
-          :value="cityFont"
-          @change="emit('update:cityFont', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="serif">Serif (Georgia)</option>
-          <option value="sans-serif">Sans-Serif</option>
-          <option value="monospace">Monospace</option>
-        </select>
-      </label>
-
-      <label v-if="showCityName" class="gif-field">
-        <span class="gif-field-label">City position</span>
-        <select
-          class="gif-field-select"
-          :disabled="controlsDisabled"
-          :value="cityPosition"
-          @change="emit('update:cityPosition', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="bottom-left">Bottom Left</option>
-          <option value="bottom-right">Bottom Right</option>
-          <option value="top-left">Top Left</option>
-          <option value="top-right">Top Right</option>
-        </select>
-      </label>
-
-      <label class="gif-field gif-checkbox-field">
-        <input
-          type="checkbox"
-          :disabled="controlsDisabled"
-          :checked="showDistance"
-          @change="emit('update:showDistance', ($event.target as HTMLInputElement).checked)"
-        />
-        <span class="gif-field-label">Total distance</span>
-      </label>
-
-      <label v-if="showDistance" class="gif-field">
-        <span class="gif-field-label">Distance unit</span>
-        <select
-          class="gif-field-select"
-          :disabled="controlsDisabled"
-          :value="distanceUnit"
-          @change="emit('update:distanceUnit', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="km">Kilometers (km)</option>
-          <option value="miles">Miles (mi)</option>
-        </select>
-      </label>
-
-      <label v-if="showDistance" class="gif-field">
-        <span class="gif-field-label">Distance position</span>
-        <select
-          class="gif-field-select"
-          :disabled="controlsDisabled"
-          :value="distancePosition"
-          @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
-        >
-          <option value="bottom-left">Bottom Left</option>
-          <option value="bottom-right">Bottom Right</option>
-          <option value="top-left">Top Left</option>
-          <option value="top-right">Top Right</option>
-        </select>
-      </label>
+          <span class="gif-field-help">Time to draw all routes.</span>
+        </label>
+      </div>
     </div>
 
+    <div class="overlay-settings-layout">
+      <div class="overlay-selector-column">
+        <h4 class="settings-section-title">Overlays</h4>
+        <div class="overlay-selector-list">
+          <div
+            class="overlay-selector-item"
+            :class="{ active: activeTab === 'city' }"
+            @click="activeTab = 'city'"
+          >
+            <span class="overlay-item-name">City Label</span>
+            <button
+              type="button"
+              class="toggle-switch-btn"
+              :class="{ on: showCityName }"
+              :disabled="controlsDisabled"
+              @click.stop="emit('update:showCityName', !showCityName)"
+            >
+              <span class="toggle-switch-slider"></span>
+            </button>
+          </div>
+
+          <div
+            class="overlay-selector-item"
+            :class="{ active: activeTab === 'distance' }"
+            @click="activeTab = 'distance'"
+          >
+            <span class="overlay-item-name">Total Distance</span>
+            <button
+              type="button"
+              class="toggle-switch-btn"
+              :class="{ on: showDistance }"
+              :disabled="controlsDisabled"
+              @click.stop="emit('update:showDistance', !showDistance)"
+            >
+              <span class="toggle-switch-slider"></span>
+            </button>
+          </div>
+
+          <div
+            class="overlay-selector-item"
+            :class="{ active: activeTab === 'date' }"
+            @click="activeTab = 'date'"
+          >
+            <span class="overlay-item-name">Date</span>
+            <button
+              type="button"
+              class="toggle-switch-btn"
+              :class="{ on: showDate }"
+              :disabled="controlsDisabled"
+              @click.stop="emit('update:showDate', !showDate)"
+            >
+              <span class="toggle-switch-slider"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay-details-column">
+        <h4 class="settings-section-title">
+          {{ activeTab === 'city' ? 'City Label Settings' : activeTab === 'distance' ? 'Distance Settings' : 'Date Settings' }}
+        </h4>
+        <div class="overlay-details-panel">
+          <!-- City Label Config -->
+          <div v-show="activeTab === 'city'" class="details-section">
+            <div class="details-grid">
+              <label class="gif-field">
+                <span class="gif-field-label">City label text</span>
+                <input
+                  class="gif-field-input"
+                  type="text"
+                  :disabled="controlsDisabled"
+                  :value="cityNameOverlay"
+                  @input="emit('update:cityNameOverlay', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Font style</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="cityFont"
+                  @change="emit('update:cityFont', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="serif">Serif (Georgia)</option>
+                  <option value="sans-serif">Sans-Serif</option>
+                  <option value="monospace">Monospace</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Position</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="cityPosition"
+                  @change="emit('update:cityPosition', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <!-- Total Distance Config -->
+          <div v-show="activeTab === 'distance'" class="details-section">
+            <div class="details-grid">
+              <label class="gif-field">
+                <span class="gif-field-label">Distance unit</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distanceUnit"
+                  @change="emit('update:distanceUnit', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="km">Kilometers (km)</option>
+                  <option value="miles">Miles (mi)</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Font style</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distanceFont"
+                  @change="emit('update:distanceFont', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="serif">Serif (Georgia)</option>
+                  <option value="sans-serif">Sans-Serif</option>
+                  <option value="monospace">Monospace</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Position</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="distancePosition"
+                  @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <!-- Date Config -->
+          <div v-show="activeTab === 'date'" class="details-section">
+            <div class="details-grid">
+              <label class="gif-field">
+                <span class="gif-field-label">Date format</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="dateFormat"
+                  @change="emit('update:dateFormat', ($event.target as HTMLSelectElement).value as any)"
+                >
+                  <option value="month-day-year">Month day year (e.g. Jan 12, 2026)</option>
+                  <option value="month-year">Month, Year (e.g. Jan, 2026)</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Font style</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="dateFont"
+                  @change="emit('update:dateFont', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="serif">Serif (Georgia)</option>
+                  <option value="sans-serif">Sans-Serif</option>
+                  <option value="monospace">Monospace</option>
+                </select>
+              </label>
+
+              <label class="gif-field">
+                <span class="gif-field-label">Position</span>
+                <select
+                  class="gif-field-select"
+                  :disabled="controlsDisabled"
+                  :value="datePosition"
+                  @change="emit('update:datePosition', ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="bottom-left">Bottom Left</option>
+                  <option value="bottom-right">Bottom Right</option>
+                  <option value="top-left">Top Left</option>
+                  <option value="top-right">Top Right</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="gif-export-actions">
       <button class="btn btn-primary" :disabled="downloadDisabled" @click="emit('export')">
         {{ downloadButtonLabel }}
@@ -464,9 +592,26 @@ const emitFlashColor = (event: Event) => {
   letter-spacing: 0.02em;
 }
 
-.gif-export-controls {
+.settings-section-title {
+  margin: 0 0 10px 0;
+  font-size: 0.82rem;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.general-gif-settings {
+  border: 1px solid #2f2f2f;
+  background: #0c0c0c;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 4px;
+}
+
+.general-settings-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
 
@@ -543,20 +688,134 @@ const emitFlashColor = (event: Event) => {
   margin-top: 0;
 }
 
-.gif-checkbox-field {
-  flex-direction: row !important;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-  margin-top: 12px;
+.overlay-settings-layout {
+  display: flex;
+  gap: 20px;
+  border: 1px solid #2f2f2f;
+  background: #0c0c0c;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 4px;
 }
 
-.gif-checkbox-field input[type="checkbox"] {
+.overlay-selector-column {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #2f2f2f;
+  padding-right: 20px;
+}
+
+.overlay-details-column {
+  flex: 1.5;
+  min-width: 250px;
+  display: flex;
+  flex-direction: column;
+}
+
+.overlay-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overlay-selector-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #1f1f1f;
+  background: #121212;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.overlay-selector-item:hover {
+  background: #181818;
+  border-color: #333;
+}
+
+.overlay-selector-item.active {
+  background: #1e1e1e;
+  border-color: #ff8c00;
+}
+
+.overlay-item-name {
+  color: #fff;
+  font-weight: 500;
+  font-size: 0.92rem;
+}
+
+.toggle-switch-btn {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: #2a2a2a;
+  border-radius: 999px;
+  border: 1px solid #444;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.toggle-switch-btn.on {
+  background-color: #ff8c00;
+  border-color: #ffb347;
+}
+
+.toggle-switch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-switch-slider {
+  position: absolute;
+  left: 2px;
   width: 18px;
   height: 18px;
-  cursor: pointer;
-  accent-color: #ff8c00;
+  background-color: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.toggle-switch-btn.on .toggle-switch-slider {
+  transform: translateX(20px);
+}
+
+.overlay-details-panel {
+  background: #121212;
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 16px;
+  flex: 1;
+}
+
+.details-section {
+  height: 100%;
+}
+
+.details-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .overlay-settings-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+  .overlay-selector-column {
+    border-right: none;
+    border-bottom: 1px solid #2f2f2f;
+    padding-right: 0;
+    padding-bottom: 16px;
+  }
 }
 
 .gif-field-select {

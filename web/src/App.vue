@@ -48,7 +48,11 @@ const onSelectTool = (tool: string) => {
         >
           Uploads
         </button>
-        <button v-if="activeTool !== 'home'" class="btn btn-secondary" @click="router.push('/')">
+        <button
+          v-if="activeTool !== 'home'"
+          class="btn btn-secondary"
+          @click="router.push('/')"
+        >
           Home
         </button>
         <div class="api-badge" :class="health">
@@ -89,6 +93,18 @@ const onSelectTool = (tool: string) => {
   align-items: center;
   gap: 12px;
   cursor: pointer;
+  border: 1px solid transparent;
+  padding: 4px 8px;
+  margin: -4px -8px;
+  border-radius: 6px;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+
+.header-main:hover {
+  border-color: #3c3c3c;
+  background-color: #1a1a1a;
 }
 
 .header-side {

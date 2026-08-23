@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 interface StepItem {
   number: number;
   label: string;
@@ -8,10 +10,15 @@ const emit = defineEmits<{
   (e: "step-click", stepNumber: number): void;
 }>();
 
-defineProps<{
+const props = defineProps<{
   currentStep: number;
   steps: StepItem[];
 }>();
+
+const previousStep = computed(() => {
+  const currentIndex = props.steps.findIndex((step) => step.number === props.currentStep);
+  return currentIndex > 0 ? props.steps[currentIndex - 1] : null;
+});
 </script>
 
 <template>
@@ -33,6 +40,13 @@ defineProps<{
       </div>
     </div>
     <div class="stepper-actions">
+      <button
+        v-if="previousStep"
+        class="btn btn-secondary"
+        @click="emit('step-click', previousStep.number)"
+      >
+        Back
+      </button>
       <slot name="actions" />
     </div>
   </div>

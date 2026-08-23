@@ -35,6 +35,11 @@ export interface BuildRouteAnimationGifOptions {
   showDistance?: boolean;
   distancePosition?: string;
   distanceUnit?: string;
+  distanceFont?: string;
+  showDate?: boolean;
+  datePosition?: string;
+  dateFont?: string;
+  dateFormat?: "month-day-year" | "month-year";
 }
 
 interface Projector {
@@ -115,6 +120,35 @@ const getRouteId = (feature: GeoJSONFeature) =>
 
 const getRouteDate = (feature: GeoJSONFeature) =>
   getStringProperty(feature, "route_date", "activity_date");
+
+const formatDate = (dateStr: string | undefined, format?: "month-day-year" | "month-year"): string => {
+  if (!dateStr) return "";
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  if (match) {
+    const year = match[1];
+    const monthIndex = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    if (monthIndex >= 0 && monthIndex < 12) {
+      if (format === "month-year") {
+        return `${months[monthIndex]}, ${year}`;
+      }
+      return `${months[monthIndex]} ${day}, ${year}`;
+    }
+  }
+  const date = new Date(dateStr);
+  if (!isNaN(date.getTime())) {
+    const hasTime = dateStr.includes("T") || dateStr.includes(" ");
+    const month = hasTime ? date.getMonth() : date.getUTCMonth();
+    const day = hasTime ? date.getDate() : date.getUTCDate();
+    const year = hasTime ? date.getFullYear() : date.getUTCFullYear();
+    if (format === "month-year") {
+      return `${months[month]}, ${year}`;
+    }
+    return `${months[month]} ${day}, ${year}`;
+  }
+  return dateStr;
+};
 
 const getRouteTimestamp = (feature: GeoJSONFeature) => {
   const routeDate = getRouteDate(feature);
@@ -354,6 +388,11 @@ export async function buildRouteAnimationGif({
   showDistance = false,
   distancePosition = "bottom-right",
   distanceUnit = "km",
+  distanceFont = "monospace",
+  showDate = false,
+  datePosition = "bottom-right",
+  dateFont = "monospace",
+  dateFormat = "month-day-year",
 }: BuildRouteAnimationGifOptions) {
   if (typeof document === "undefined") {
     throw new Error("Animated GIF export is only available in the browser.");
@@ -390,15 +429,20 @@ export async function buildRouteAnimationGif({
   const endingDelay = normalizeDelay(finalFrameDelayMs, DEFAULT_FINAL_FRAME_DELAY_MS);
   const routeRgb = parseHexColor(routeColor);
   const flashRgb = parseHexColor(flashColor ?? DEFAULT_FLASH_COLOR);
-  const includeWhite = !!((showCityName && cityName) || showDistance);
+  const includeWhite = !!((showCityName && cityName) || showDistance || showDate);
   const { palette, needTertiaryWhite } = createPalette(routeRgb, flashRgb, includeWhite);
   const projector = createProjector(bbox, squareSize);
 
-  const drawOverlays = (context2d: CanvasRenderingContext2D, currentDistance: number) => {
+  const drawOverlays = (
+    context2d: CanvasRenderingContext2D,
+    currentDistance: number,
+    currentDateStr: string | undefined
+  ) => {
     const hasCity = !!(showCityName && cityName);
     const hasDist = !!showDistance;
+    const hasDate = !!(showDate && currentDateStr);
 
-    if (!hasCity && !hasDist) {
+    if (!hasCity && !hasDist && !hasDate) {
       return;
     }
 
@@ -407,13 +451,16 @@ export async function buildRouteAnimationGif({
     const padding = Math.max(16, Math.round(squareSize * 0.05));
     const lineSpacing = fontSize * 1.25;
 
-    let fontName = "Georgia, serif";
-    if (cityFont === "sans-serif") {
-      fontName = "system-ui, -apple-system, sans-serif";
-    } else if (cityFont === "monospace") {
-      fontName = "monospace";
-    }
-    context2d.font = `bold ${fontSize}px ${fontName}`;
+    const getFontString = (style: string) => {
+      let family = "Georgia, serif";
+      if (style === "sans-serif") {
+        family = "system-ui, -apple-system, sans-serif";
+      } else if (style === "monospace") {
+        family = `ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace`;
+      }
+      return `bold ${fontSize}px ${family}`;
+    };
+
     context2d.fillStyle = "#ffffff";
     context2d.textBaseline = "alphabetic";
 
@@ -442,37 +489,57 @@ export async function buildRouteAnimationGif({
       return { x, y, align };
     };
 
-    if (hasCity && hasDist && cityPosition === distancePosition) {
-      const { x, y, align } = getCoords(cityPosition);
-      context2d.textAlign = align;
+    const itemsByPosition: Record<string, Array<{ text: string; fontStyle: string }>> = {
+      "bottom-left": [],
+      "bottom-right": [],
+      "top-left": [],
+      "top-right": [],
+    };
 
-      let cityY = y;
-      let distY = y;
+    if (hasCity) {
+      itemsByPosition[cityPosition].push({
+        text: cityName || "",
+        fontStyle: cityFont,
+      });
+    }
 
-      if (cityPosition.startsWith("bottom-")) {
-        distY = y;
-        cityY = y - lineSpacing;
-      } else {
-        cityY = y;
-        distY = y + lineSpacing;
-      }
+    if (hasDate) {
+      itemsByPosition[datePosition].push({
+        text: formatDate(currentDateStr, dateFormat),
+        fontStyle: dateFont,
+      });
+    }
 
-      context2d.fillText(cityName || "", x, cityY);
+    if (hasDist) {
       const rounded = Math.round(currentDistance);
       const distStr = String(rounded).padStart(padLength, "0") + unitLabel;
-      context2d.fillText(distStr, x, distY);
-    } else {
-      if (hasCity) {
-        const { x, y, align } = getCoords(cityPosition);
-        context2d.textAlign = align;
-        context2d.fillText(cityName || "", x, y);
+      itemsByPosition[distancePosition].push({
+        text: distStr,
+        fontStyle: distanceFont,
+      });
+    }
+
+    const positions = ["bottom-left", "bottom-right", "top-left", "top-right"];
+    for (const pos of positions) {
+      const items = itemsByPosition[pos];
+      if (items.length === 0) {
+        continue;
       }
-      if (hasDist) {
-        const { x, y, align } = getCoords(distancePosition);
-        context2d.textAlign = align;
-        const rounded = Math.round(currentDistance);
-        const distStr = String(rounded).padStart(padLength, "0") + unitLabel;
-        context2d.fillText(distStr, x, y);
+
+      const { x, y, align } = getCoords(pos);
+      context2d.textAlign = align;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        let itemY = y;
+        if (pos.startsWith("bottom-")) {
+          itemY = y - (items.length - 1 - i) * lineSpacing;
+        } else {
+          itemY = y + i * lineSpacing;
+        }
+
+        context2d.font = getFontString(item.fontStyle);
+        context2d.fillText(item.text, x, itemY);
       }
     }
 
@@ -543,8 +610,8 @@ export async function buildRouteAnimationGif({
       drawRoute(ctx, routes[index], projector);
       ctx.restore();
 
-      // Draw city name and distance overlays
-      drawOverlays(ctx, distancePrefixSums[index]);
+      // Draw city name, distance, and date overlays
+      drawOverlays(ctx, distancePrefixSums[index], getRouteDate(routes[index]));
 
       const frame = createIndexedFrame(
         ctx.getImageData(0, 0, squareSize, squareSize).data,
@@ -577,8 +644,8 @@ export async function buildRouteAnimationGif({
     ctx.fillRect(0, 0, squareSize, squareSize);
     ctx.drawImage(routesCanvas, 0, 0);
 
-    // Draw overlays with the final total accumulated distance
-    drawOverlays(ctx, totalAccumulatedDistance);
+    // Draw overlays with the final total accumulated distance and date
+    drawOverlays(ctx, totalAccumulatedDistance, getRouteDate(routes[routes.length - 1]));
 
     const finalFrame = createIndexedFrame(
       ctx.getImageData(0, 0, squareSize, squareSize).data,

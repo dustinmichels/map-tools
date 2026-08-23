@@ -74,7 +74,11 @@ export function useRouteGifExport() {
   const showDistance = ref(false);
   const distancePosition = ref("bottom-right");
   const distanceUnit = ref("km");
-
+  const distanceFont = ref("monospace");
+  const showDate = ref(false);
+  const datePosition = ref("bottom-right");
+  const dateFont = ref("monospace");
+  const dateFormat = ref<"month-day-year" | "month-year">("month-day-year");
   let previewBuildToken = 0;
 
   const revokePreviewUrl = () => {
@@ -137,6 +141,11 @@ export function useRouteGifExport() {
     showDistance.value = false;
     distancePosition.value = "bottom-right";
     distanceUnit.value = "km";
+    distanceFont.value = "monospace";
+    showDate.value = false;
+    datePosition.value = "bottom-right";
+    dateFont.value = "monospace";
+    dateFormat.value = "month-day-year";
   };
 
   const validateRoutes = (geoJSON: GeoJSONFeatureCollection | null) => {
@@ -177,6 +186,11 @@ export function useRouteGifExport() {
         showDistance: showDistance.value,
         distancePosition: distancePosition.value,
         distanceUnit: distanceUnit.value,
+        distanceFont: distanceFont.value,
+        showDate: showDate.value,
+        datePosition: datePosition.value,
+        dateFont: dateFont.value,
+        dateFormat: dateFormat.value,
         onProgress: (nextProgress) => {
           if (currentToken === previewBuildToken) {
             progress.value = nextProgress;
@@ -236,6 +250,11 @@ export function useRouteGifExport() {
         showDistance: showDistance.value,
         distancePosition: distancePosition.value,
         distanceUnit: distanceUnit.value,
+        distanceFont: distanceFont.value,
+        showDate: showDate.value,
+        datePosition: datePosition.value,
+        dateFont: dateFont.value,
+        dateFormat: dateFormat.value,
         onProgress: (nextProgress) => {
           progress.value = nextProgress;
         },
@@ -272,6 +291,11 @@ export function useRouteGifExport() {
     showDistance,
     distancePosition,
     distanceUnit,
+    distanceFont,
+    showDate,
+    datePosition,
+    dateFont,
+    dateFormat,
     updateFrameDelayMs,
     updateRouteColor,
     updateFlashColor,
