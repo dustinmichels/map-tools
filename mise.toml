@@ -11,8 +11,8 @@ description = "Install DuckDB spatial extension"
 run = "duckdb -c 'INSTALL spatial;'"
 
 [tasks.fmt]
-description = "Format all source code (oxfmt + gofmt)"
-run = ["cd web && bunx oxfmt .", "gofmt -w ."]
+description = "Format all source code (oxfmt + gofmt + prettier)"
+run = ["cd web && bun oxfmt .", "gofmt -w .", "bun --cwd web prettier --write ../README.md"]
 
 [tasks.clean]
 description = "Remove build artifacts"
