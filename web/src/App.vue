@@ -7,7 +7,6 @@ const router = useRouter();
 
 const activeTool = computed(() => {
   if (route.path === "/upload") return "upload";
-  if (route.path === "/viewer") return "viewer";
   if (route.path === "/lightning-map") return "lightning-map";
   if (route.path === "/compare") return "compare";
   return "home";

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import { Copy, Check } from "lucide-vue-next";
+import { Copy, Check } from "@lucide/vue";
 
 const props = defineProps<{
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat]

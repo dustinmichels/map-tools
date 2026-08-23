@@ -7,9 +7,9 @@ const DEFAULT_FINAL_FRAME_DELAY_MS = 1200;
 const DEFAULT_PADDING = 24;
 const DEFAULT_ROUTE_COLOR = "#ff8c00";
 const DEFAULT_FLASH_COLOR = "#ffffff";
+const DEFAULT_LINE_OPACITY = 1;
 const SHADE_COUNT = 24;
 const MAX_MERCATOR_LATITUDE = 85.05112878;
-
 type Coordinate = [number, number];
 
 type Segment = Coordinate[];
@@ -62,7 +62,7 @@ export interface BuildRouteAnimationOptions {
   finalFrameDelayMs?: number;
   routeColor?: string;
   flashColor?: string;
-  onProgress?: (progress: RouteGifProgress) => void;
+  lineOpacity?: number;
   cityName?: string;
   showCityName?: boolean;
   cityFont?: string;
@@ -448,8 +448,9 @@ export async function buildRouteAnimation({
   finalFrameDelayMs,
   routeColor,
   flashColor,
-  onProgress,
+  lineOpacity,
   cityName,
+  onProgress,
   showCityName = true,
   cityFont = "serif",
   cityPosition = "top-left",
@@ -498,6 +499,9 @@ export async function buildRouteAnimation({
   const endingDelay = normalizeDelay(finalFrameDelayMs, DEFAULT_FINAL_FRAME_DELAY_MS);
   const routeRgb = parseHexColor(routeColor);
   const flashRgb = parseHexColor(flashColor ?? DEFAULT_FLASH_COLOR);
+  const normalizedLineOpacity = Number.isFinite(lineOpacity)
+    ? clamp(lineOpacity ?? DEFAULT_LINE_OPACITY, 0.05, 1)
+    : DEFAULT_LINE_OPACITY;
   const includeWhite = !!((showCityName && cityName) || showDistance || showDate);
   const { palette, needTertiaryWhite } = createPalette(routeRgb, flashRgb, includeWhite);
   const projector = createProjector(bbox, squareSize);
@@ -630,6 +634,7 @@ export async function buildRouteAnimation({
   routesCtx.lineJoin = "round";
   routesCtx.lineWidth = Math.max(1.75, squareSize / 320);
   routesCtx.strokeStyle = `rgb(${routeRgb[0]}, ${routeRgb[1]}, ${routeRgb[2]})`;
+  routesCtx.globalAlpha = normalizedLineOpacity;
 
   // Main canvas to draw the final composite frame (routes + text)
   const canvas = document.createElement("canvas");
@@ -723,9 +728,9 @@ export async function buildRouteAnimation({
 
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, squareSize, squareSize);
-      ctx.drawImage(routesCanvas, 0, 0);
-
       ctx.save();
+      ctx.globalAlpha = normalizedLineOpacity;
+      ctx.drawImage(routesCanvas, 0, 0);
       ctx.beginPath();
       ctx.rect(projector.clipX, projector.clipY, projector.clipWidth, projector.clipHeight);
       ctx.clip();
@@ -750,7 +755,10 @@ export async function buildRouteAnimation({
 
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, squareSize, squareSize);
+    ctx.save();
+    ctx.globalAlpha = normalizedLineOpacity;
     ctx.drawImage(routesCanvas, 0, 0);
+    ctx.restore();
 
     drawOverlays(
       ctx,

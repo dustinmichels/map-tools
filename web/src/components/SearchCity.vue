@@ -10,6 +10,15 @@ interface NominatimResult {
   display_name: string;
 }
 
+const props = withDefaults(
+  defineProps<{
+    selectedName?: string;
+  }>(),
+  {
+    selectedName: "",
+  },
+);
+
 const emit = defineEmits<{
   (
     event: "select-city",
@@ -69,6 +78,25 @@ const searchCities = async (value: string) => {
 const debouncedSearch = useDebounceFn((value: string) => {
   void searchCities(value);
 }, 400);
+
+const syncSelectedName = (value: string) => {
+  latestRequestId += 1;
+  suppressNextWatch = true;
+  query.value = value;
+  suggestions.value = [];
+  loading.value = false;
+  showError.value = false;
+};
+
+watch(
+  () => props.selectedName,
+  (value) => {
+    if (value !== query.value) {
+      syncSelectedName(value);
+    }
+  },
+  { immediate: true },
+);
 
 watch(query, (value) => {
   if (suppressNextWatch) {

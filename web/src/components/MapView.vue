@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Loader2 } from "lucide-vue-next";
+import { Loader2 } from "@lucide/vue";
 import { onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 import { useResizeObserver, useDebounceFn } from "@vueuse/core";
 import {
@@ -810,32 +810,32 @@ onUnmounted(() => {
   @apply border-amber-500 bg-zinc-700;
 }
 
-::deep(.route-tooltip-popup .maplibregl-popup-content) {
+:deep(.route-tooltip-popup .maplibregl-popup-content) {
   @apply rounded-xl border border-zinc-700 bg-zinc-950 p-0 shadow-2xl shadow-black/45;
 }
 
-::deep(.route-tooltip-popup .maplibregl-popup-tip) {
+:deep(.route-tooltip-popup .maplibregl-popup-tip) {
   border-top-color: rgb(63 63 70);
 }
 
-::deep(.route-tooltip-card) {
+:deep(.route-tooltip-card) {
   @apply flex min-w-[170px] flex-col gap-2 px-3 py-2.5;
 }
 
-::deep(.route-tooltip-row) {
+:deep(.route-tooltip-row) {
   @apply flex justify-between gap-3;
 }
 
-::deep(.route-tooltip-label) {
+:deep(.route-tooltip-label) {
   @apply text-[0.72rem] font-bold uppercase text-zinc-500;
   letter-spacing: 0.08em;
 }
 
-::deep(.route-tooltip-value) {
+:deep(.route-tooltip-value) {
   @apply text-[0.9rem] font-semibold text-white;
 }
 
-::deep(.mapboxgl-marker) {
+:deep(.mapboxgl-marker) {
   z-index: 10;
 }
 </style>

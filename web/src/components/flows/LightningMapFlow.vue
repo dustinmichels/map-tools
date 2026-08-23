@@ -8,29 +8,18 @@ import MapView from "../MapView.vue";
 import UploadedDatasetList from "../uploads/UploadedDatasetList.vue";
 import { useActivityDataset } from "../../composables/useActivityDataset";
 import { useRouteGifExport } from "../../composables/useRouteGifExport";
+import { useStoredAreaSelection } from "../../composables/useStoredAreaSelection";
 import { useUploadedDatasets } from "../../composables/useUploadedDatasets";
 import {
-  DEFAULT_BOSTON_BBOX,
-  DEFAULT_BOSTON_CENTER,
   type BBox,
   type GeoJSONFeatureCollection,
   type GeometryMode,
-  type LngLat,
   type RouteLayer,
-  type SelectedCity,
   formatCityName,
 } from "../../lib/activity";
 
-const props = withDefaults(
-  defineProps<{
-    toolTitle?: string;
-    routeId?: string;
-  }>(),
-  {
-    toolTitle: "Lightning Map",
-    routeId: "lightning-map",
-  },
-);
+const TOOL_TITLE = "Lightning Map";
+const ROUTE_ID = "lightning-map";
 
 const steps = [
   { number: 1, label: "Upload" },
@@ -40,9 +29,7 @@ const steps = [
 ];
 
 const currentStep = ref(1);
-const cityName = ref("Boston, MA, USA");
-const bbox = ref<BBox>([...DEFAULT_BOSTON_BBOX]);
-const center = ref<LngLat>([...DEFAULT_BOSTON_CENTER]);
+const { cityName, bbox, center, selectCity, resetArea } = useStoredAreaSelection();
 const geometryMode = ref<GeometryMode>("simplified");
 const dataset = useActivityDataset();
 const uploadLibrary = useUploadedDatasets();
@@ -50,6 +37,7 @@ const {
   frameDelayMs,
   routeColor,
   flashColor,
+  lineOpacity,
   exportFormat,
   isMovieExportSupported,
   isNativeMp4Supported,
@@ -61,6 +49,7 @@ const {
   isPreparingPreview,
   isDownloading,
   exportError,
+  statusMessage,
   showCityName,
   cityFont,
   cityPosition,
@@ -76,6 +65,7 @@ const {
   updateFrameDelayMs,
   updateRouteColor,
   updateFlashColor,
+  updateLineOpacity,
   preparePreview,
   downloadAnimation,
   resetState,
@@ -105,8 +95,8 @@ const previewRoutes = computed<RouteLayer[]>(() => {
 
   return [
     {
-      id: `${props.routeId}-preview`,
-      label: `${props.toolTitle} preview`,
+      id: `${ROUTE_ID}-preview`,
+      label: `${TOOL_TITLE} preview`,
       color: AREA_PREVIEW_ROUTE_COLOR,
       data: geoJSON,
       opacity: 0.35,
@@ -118,8 +108,8 @@ const previewRoutes = computed<RouteLayer[]>(() => {
 
 const displayRoutes = computed<RouteLayer[]>(() => [
   {
-    id: props.routeId,
-    label: props.toolTitle,
+    id: ROUTE_ID,
+    label: TOOL_TITLE,
     color: routeColor.value,
     data: dataset.activitiesGeoJSON.value,
   },
@@ -139,12 +129,6 @@ const geometryModeDescription = computed(() =>
     ? "Simplified geometry removes extra points for faster redraws."
     : "Original geometry keeps every recorded point from the saved dataset.",
 );
-
-const handleSelectCity = (payload: SelectedCity) => {
-  cityName.value = payload.name;
-  bbox.value = payload.bbox;
-  center.value = [payload.lon, payload.lat];
-};
 
 const submitSelectedArchive = async () => {
   const upload = await dataset.submitZip();
@@ -237,7 +221,7 @@ const prepareRouteGifPreview = async () => {
     geoJSON: dataset.activitiesGeoJSON.value,
     bbox: bbox.value,
     cityName: cityName.value,
-    routeLabel: props.toolTitle,
+    routeLabel: TOOL_TITLE,
     datasetName: dataset.activeDataset.value?.displayName ?? null,
   });
 };
@@ -247,7 +231,7 @@ const downloadRouteAnimation = async () => {
     geoJSON: dataset.activitiesGeoJSON.value,
     bbox: bbox.value,
     cityName: cityName.value,
-    routeLabel: props.toolTitle,
+    routeLabel: TOOL_TITLE,
     datasetName: dataset.activeDataset.value?.displayName ?? null,
   });
 };
@@ -285,6 +269,7 @@ watch(
     routeColor,
     flashColor,
     frameDelayMs,
+    lineOpacity,
     exportFormat,
     showCityName,
     cityFont,
@@ -364,9 +349,7 @@ const handleNextButtonClick = () => {
 
 const resetFlow = () => {
   currentStep.value = 1;
-  cityName.value = "Boston, MA, USA";
-  bbox.value = [...DEFAULT_BOSTON_BBOX];
-  center.value = [...DEFAULT_BOSTON_CENTER];
+  resetArea();
   geometryMode.value = "simplified";
   previewViewportBBox.value = null;
   previewGeoJSON.value = null;
@@ -472,8 +455,8 @@ onUnmounted(() => {
           <h3>Simplify geometry for faster map loads</h3>
           <p>
             {{ dataset.activeDataset.value?.displayName }} does not have a simplified GeoParquet
-            companion yet. Build it now for the simplified view, or switch to original geometry in
-            the map viewer.
+            companion yet. Build it now for the simplified view, or switch this map to original
+            geometry.
           </p>
         </div>
         <div class="simplify-actions">
@@ -502,7 +485,8 @@ onUnmounted(() => {
       :city-name="cityName"
       v-model:bbox="bbox"
       @back="currentStep = 1"
-      @select-city="handleSelectCity"
+      @reset-area="resetArea"
+      @select-city="selectCity"
     >
       <template #details>
         <p v-if="dataset.readyToFilter.value" class="geometry-note">
@@ -521,7 +505,7 @@ onUnmounted(() => {
 
     <div v-else-if="currentStep === 3" class="card-group">
       <section class="card flow-card final-card">
-        <h2>{{ props.toolTitle }}</h2>
+        <h2>{{ TOOL_TITLE }}</h2>
 
         <div v-if="dataset.isFiltering.value" class="processing-indicator">
           <div class="processing-ring"></div>
@@ -605,6 +589,7 @@ onUnmounted(() => {
         :is-downloading="isDownloading"
         :route-color="routeColor"
         :flash-color="flashColor"
+        :line-opacity="lineOpacity"
         :frame-delay-ms="frameDelayMs"
         :preview-url="previewUrl"
         :export-error="exportError"
@@ -627,6 +612,7 @@ onUnmounted(() => {
         :is-transcode-available="isTranscodeAvailable"
         @update:route-color="updateRouteColor"
         @update:flash-color="updateFlashColor"
+        @update:line-opacity="updateLineOpacity"
         @update:frame-delay-ms="updateFrameDelayMs"
         @export="downloadRouteAnimation"
       />

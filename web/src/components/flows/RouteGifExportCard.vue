@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { RotateCcw } from "lucide-vue-next";
+import { RotateCcw } from "@lucide/vue";
 
 const DEFAULT_ROUTE_COLOR = "#ff8c00";
 const DEFAULT_FLASH_COLOR = "#ffffff";
@@ -15,8 +15,8 @@ const props = defineProps<{
   isDownloading: boolean;
   routeColor: string;
   flashColor: string;
+  lineOpacity: number;
   frameDelayMs: number;
-  previewUrl: string | null;
   exportError: string | null;
   statusMessage: string | null;
   showCityName: boolean;
@@ -39,8 +39,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: "update:routeColor", value: string): void;
   (event: "update:flashColor", value: string): void;
+  (event: "update:lineOpacity", value: number): void;
   (event: "update:frameDelayMs", value: number): void;
-  (event: "update:showCityName", value: boolean): void;
   (event: "update:cityFont", value: string): void;
   (event: "update:cityPosition", value: string): void;
   (event: "update:cityNameOverlay", value: string): void;
@@ -291,6 +291,13 @@ const emitRouteColor = (event: Event) => {
 const emitFlashColor = (event: Event) => {
   emit("update:flashColor", (event.target as HTMLInputElement).value);
 };
+const emitLineOpacity = (event: Event) => {
+  const rawValue = (event.target as HTMLInputElement).value;
+  const numericValue = Number(rawValue);
+  if (Number.isFinite(numericValue) && rawValue.trim() !== "") {
+    emit("update:lineOpacity", numericValue);
+  }
+};
 
 const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) => {
   const newVal = !currentVal;
@@ -443,6 +450,20 @@ const toggleOverlay = (type: "city" | "distance" | "date", currentVal: boolean) 
               <RotateCcw :size="14" />
             </button>
           </div>
+        </label>
+        <label class="gif-field">
+          <span class="gif-field-label">Line opacity</span>
+          <input
+            class="gif-field-input"
+            type="number"
+            min="0.05"
+            max="1"
+            step="0.05"
+            :disabled="controlsDisabled"
+            :value="lineOpacity"
+            @input="emitLineOpacity"
+          />
+          <span class="gif-field-help">1 = solid. Lower values build a heat-map effect.</span>
         </label>
         <label class="gif-field">
           <span class="gif-field-label">Frame delay (ms)</span>

@@ -6,17 +6,15 @@ import FlowStepper from "./FlowStepper.vue";
 import MapView from "../MapView.vue";
 import UploadedDatasetList from "../uploads/UploadedDatasetList.vue";
 import { useActivityDataset } from "../../composables/useActivityDataset";
+import { useStoredAreaSelection } from "../../composables/useStoredAreaSelection";
 import { useUploadedDatasets } from "../../composables/useUploadedDatasets";
 import {
-  DEFAULT_BOSTON_BBOX,
-  DEFAULT_BOSTON_CENTER,
   bboxCenter,
   getFeatureCollectionBounds,
   type BBox,
   type GeoJSONFeatureCollection,
   type LngLat,
   type RouteLayer,
-  type SelectedCity,
 } from "../../lib/activity";
 
 const DEFAULT_PERSON_ONE_NAME = "Person 1";
@@ -29,9 +27,7 @@ const steps = [
 ];
 
 const currentStep = ref(1);
-const cityName = ref("Boston, MA, USA");
-const bbox = ref<BBox>([...DEFAULT_BOSTON_BBOX]);
-const center = ref<LngLat>([...DEFAULT_BOSTON_CENTER]);
+const { cityName, bbox, center, selectCity, resetArea } = useStoredAreaSelection();
 const personOneName = ref(DEFAULT_PERSON_ONE_NAME);
 const personTwoName = ref(DEFAULT_PERSON_TWO_NAME);
 const personOneLabel = computed(() => personOneName.value.trim() || DEFAULT_PERSON_ONE_NAME);
@@ -92,12 +88,6 @@ const filterErrors = computed(() =>
     Boolean(message),
   ),
 );
-
-const handleSelectCity = (payload: SelectedCity) => {
-  cityName.value = payload.name;
-  bbox.value = payload.bbox;
-  center.value = [payload.lon, payload.lat];
-};
 
 const submitPersonOneArchive = async () => {
   const upload = await personOne.submitZip();
@@ -195,9 +185,7 @@ const handleNextButtonClick = () => {
 
 const resetFlow = () => {
   currentStep.value = 1;
-  cityName.value = "Boston, MA, USA";
-  bbox.value = [...DEFAULT_BOSTON_BBOX];
-  center.value = [...DEFAULT_BOSTON_CENTER];
+  resetArea();
   compareAllRides.value = false;
   personOneName.value = DEFAULT_PERSON_ONE_NAME;
   personTwoName.value = DEFAULT_PERSON_TWO_NAME;
@@ -425,7 +413,8 @@ onUnmounted(() => {
       v-model:bbox="bbox"
       :show-current-area="!compareAllRides"
       @back="currentStep = 1"
-      @select-city="handleSelectCity"
+      @reset-area="resetArea"
+      @select-city="selectCity"
     >
       <template #details>
         <label class="compare-scope-toggle">

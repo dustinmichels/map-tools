@@ -20,6 +20,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   back: [];
+  resetArea: [];
   selectCity: [payload: SelectedCity];
   "update:bbox": [bbox: BBox];
 }>();
@@ -35,8 +36,17 @@ const emit = defineEmits<{
 
       <div class="area-toolbar">
         <div class="control-panel area-search">
-          <label class="control-label">Search for a city</label>
-          <SearchCity @select-city="emit('selectCity', $event)" />
+          <div class="control-header">
+            <label class="control-label">Search for a city</label>
+            <button
+              type="button"
+              class="btn btn-secondary area-reset-btn"
+              @click="emit('resetArea')"
+            >
+              Reset to default
+            </button>
+          </div>
+          <SearchCity :selected-name="props.cityName" @select-city="emit('selectCity', $event)" />
         </div>
 
         <div v-if="props.showCurrentArea" class="city-box area-current">
@@ -78,11 +88,29 @@ const emit = defineEmits<{
   @apply grid grid-cols-1 items-start gap-3;
 }
 
+.control-header {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
 .area-search {
   min-width: 0;
 }
 
+.area-reset-btn {
+  @apply px-3 py-1.5 text-[0.72rem];
+}
+
 .area-current {
   @apply mt-0;
+}
+
+@media (max-width: 720px) {
+  .control-header {
+    @apply items-stretch;
+  }
+
+  .area-reset-btn {
+    @apply w-full;
+  }
 }
 </style>

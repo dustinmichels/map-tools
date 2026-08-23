@@ -15,9 +15,11 @@ const MAX_FRAME_DELAY_MS = 5000;
 const INITIAL_PREVIEW_ROUTE_TARGET = 200;
 const DEFAULT_ROUTE_COLOR = "#ff8c00";
 const DEFAULT_FLASH_COLOR = "#ffffff";
+const DEFAULT_LINE_OPACITY = 1;
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{6})$/;
+const MIN_LINE_OPACITY = 0.05;
+const MAX_LINE_OPACITY = 1;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
 
 const slugify = (value: string) =>
   value
@@ -62,6 +64,7 @@ export function useRouteGifExport() {
   const frameDelayMs = ref(DEFAULT_FRAME_DELAY_MS);
   const routeColor = useLocalStorage("map-route-color", DEFAULT_ROUTE_COLOR);
   const flashColor = useLocalStorage("map-flash-color", DEFAULT_FLASH_COLOR);
+  const lineOpacity = useLocalStorage("map-line-opacity", DEFAULT_LINE_OPACITY);
   const previewUrl = ref<string | null>(null);
   const previewRouteCount = ref(0);
   const previewTargetCount = ref(0);
@@ -160,12 +163,18 @@ export function useRouteGifExport() {
   const updateFlashColor = (value: string) => {
     flashColor.value = normalizeFlashColor(value);
   };
+  const updateLineOpacity = (value: number) => {
+    lineOpacity.value = Number.isFinite(value)
+      ? Math.round(clamp(value, MIN_LINE_OPACITY, MAX_LINE_OPACITY) * 100) / 100
+      : DEFAULT_LINE_OPACITY;
+  };
 
   const resetState = () => {
     previewBuildToken += 1;
     frameDelayMs.value = DEFAULT_FRAME_DELAY_MS;
     routeColor.value = DEFAULT_ROUTE_COLOR;
     flashColor.value = DEFAULT_FLASH_COLOR;
+    lineOpacity.value = DEFAULT_LINE_OPACITY;
     exportFormat.value = "gif";
     isPreparingPreview.value = false;
     isDownloading.value = false;
@@ -234,6 +243,7 @@ export function useRouteGifExport() {
           frameDelayMs: frameDelayMs.value,
           routeColor: routeColor.value,
           flashColor: flashColor.value,
+          lineOpacity: lineOpacity.value,
           cityName: cityNameOverlay.value || options.cityName,
           showCityName: showCityName.value,
           cityFont: cityFont.value,
@@ -325,6 +335,7 @@ export function useRouteGifExport() {
         frameDelayMs: frameDelayMs.value,
         routeColor: routeColor.value,
         flashColor: flashColor.value,
+        lineOpacity: lineOpacity.value,
         cityName: cityNameOverlay.value || options.cityName,
         showCityName: showCityName.value,
         cityFont: cityFont.value,
@@ -387,6 +398,7 @@ export function useRouteGifExport() {
     frameDelayMs,
     routeColor,
     flashColor,
+    lineOpacity,
     exportFormat,
     isMovieExportSupported: isMovieExportSupported(),
     isNativeMp4Supported: isNativeMp4Supported(),
@@ -414,6 +426,7 @@ export function useRouteGifExport() {
     updateFrameDelayMs,
     updateRouteColor,
     updateFlashColor,
+    updateLineOpacity,
     preparePreview,
     downloadAnimation,
     resetState,
