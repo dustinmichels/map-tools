@@ -17,6 +17,7 @@ import {
   type LngLat,
   type RouteLayer,
   type SelectedCity,
+  formatCityName,
 } from "../../lib/activity";
 
 const props = withDefaults(
@@ -57,6 +58,9 @@ const {
   cityFont,
   cityPosition,
   cityNameOverlay,
+  showDistance,
+  distancePosition,
+  distanceUnit,
   updateFrameDelayMs,
   updateRouteColor,
   updateFlashColor,
@@ -68,7 +72,7 @@ const {
 watch(
   cityName,
   (newCity) => {
-    cityNameOverlay.value = newCity;
+    cityNameOverlay.value = formatCityName(newCity);
   },
   { immediate: true },
 );
@@ -173,7 +177,7 @@ watch(geometryMode, () => {
 });
 
 watch(
-  [routeColor, flashColor, frameDelayMs, showCityName, cityFont, cityPosition, cityNameOverlay],
+  [routeColor, flashColor, frameDelayMs, showCityName, cityFont, cityPosition, cityNameOverlay, showDistance, distancePosition, distanceUnit],
   (_, __, onCleanup) => {
     if (currentStep.value !== 4 || !hasAvailableRoutes.value || dataset.isFiltering.value) {
       return;
@@ -238,6 +242,7 @@ const resetFlow = () => {
   geometryMode.value = "simplified";
   dataset.reset();
   resetState();
+  cityNameOverlay.value = formatCityName(cityName.value);
   if (uploadLibrary.uploads.value.length > 0) {
     dataset.useExistingDataset(uploadLibrary.uploads.value[0]);
   }
@@ -288,7 +293,11 @@ onUnmounted(() => {
 
 <template>
   <section class="flow-layout">
-    <FlowStepper :current-step="currentStep" :steps="steps">
+    <FlowStepper
+      :current-step="currentStep"
+      :steps="steps"
+      @step-click="currentStep = $event"
+    >
       <template #actions>
         <button
           v-if="nextButton"
@@ -476,6 +485,9 @@ onUnmounted(() => {
         v-model:city-font="cityFont"
         v-model:city-position="cityPosition"
         v-model:city-name-overlay="cityNameOverlay"
+        v-model:show-distance="showDistance"
+        v-model:distance-position="distancePosition"
+        v-model:distance-unit="distanceUnit"
         @update:route-color="updateRouteColor"
         @update:flash-color="updateFlashColor"
         @update:frame-delay-ms="updateFrameDelayMs"

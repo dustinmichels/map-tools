@@ -71,6 +71,9 @@ export function useRouteGifExport() {
   const cityFont = ref("serif");
   const cityPosition = ref("bottom-left");
   const cityNameOverlay = ref("");
+  const showDistance = ref(false);
+  const distancePosition = ref("bottom-right");
+  const distanceUnit = ref("km");
 
   let previewBuildToken = 0;
 
@@ -131,6 +134,9 @@ export function useRouteGifExport() {
     cityFont.value = "serif";
     cityPosition.value = "bottom-left";
     cityNameOverlay.value = "";
+    showDistance.value = false;
+    distancePosition.value = "bottom-right";
+    distanceUnit.value = "km";
   };
 
   const validateRoutes = (geoJSON: GeoJSONFeatureCollection | null) => {
@@ -168,6 +174,9 @@ export function useRouteGifExport() {
         showCityName: showCityName.value,
         cityFont: cityFont.value,
         cityPosition: cityPosition.value,
+        showDistance: showDistance.value,
+        distancePosition: distancePosition.value,
+        distanceUnit: distanceUnit.value,
         onProgress: (nextProgress) => {
           if (currentToken === previewBuildToken) {
             progress.value = nextProgress;
@@ -224,6 +233,9 @@ export function useRouteGifExport() {
         showCityName: showCityName.value,
         cityFont: cityFont.value,
         cityPosition: cityPosition.value,
+        showDistance: showDistance.value,
+        distancePosition: distancePosition.value,
+        distanceUnit: distanceUnit.value,
         onProgress: (nextProgress) => {
           progress.value = nextProgress;
         },
@@ -257,6 +269,9 @@ export function useRouteGifExport() {
     cityFont,
     cityPosition,
     cityNameOverlay,
+    showDistance,
+    distancePosition,
+    distanceUnit,
     updateFrameDelayMs,
     updateRouteColor,
     updateFlashColor,

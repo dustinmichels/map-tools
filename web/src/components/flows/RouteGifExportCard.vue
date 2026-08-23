@@ -16,6 +16,9 @@ const props = defineProps<{
   cityFont: string;
   cityPosition: string;
   cityNameOverlay: string;
+  showDistance: boolean;
+  distancePosition: string;
+  distanceUnit: string;
 }>();
 
 const emit = defineEmits<{
@@ -26,6 +29,9 @@ const emit = defineEmits<{
   (event: "update:cityFont", value: string): void;
   (event: "update:cityPosition", value: string): void;
   (event: "update:cityNameOverlay", value: string): void;
+  (event: "update:showDistance", value: boolean): void;
+  (event: "update:distancePosition", value: string): void;
+  (event: "update:distanceUnit", value: string): void;
   (event: "export"): void;
 }>();
 
@@ -91,8 +97,26 @@ const onFrameDelayFocus = () => {
   isDelayFocused.value = true;
 };
 
+const toastMessage = ref<string | null>(null);
+let toastTimeoutId: number | null = null;
+
+const showToast = (message: string) => {
+  if (toastTimeoutId) {
+    window.clearTimeout(toastTimeoutId);
+  }
+  toastMessage.value = message;
+  toastTimeoutId = window.setTimeout(() => {
+    toastMessage.value = null;
+    toastTimeoutId = null;
+  }, 4000);
+};
+
 const onFrameDelayBlur = () => {
   isDelayFocused.value = false;
+  const numericValue = Number(localFrameDelay.value);
+  if (Number.isFinite(numericValue) && numericValue < 20) {
+    showToast(`The GIF must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+  }
   syncFromProps();
 };
 
@@ -140,6 +164,10 @@ const onDurationFocus = () => {
 
 const onDurationBlur = () => {
   isDurationFocused.value = false;
+  const numericValue = Number(localDuration.value);
+  if (Number.isFinite(numericValue) && numericValue < minDuration.value) {
+    showToast(`The GIF must be at least ${minDuration.value} seconds long, to maintain reliable rendering.`);
+  }
   syncFromProps();
 };
 
@@ -245,7 +273,7 @@ const emitFlashColor = (event: Event) => {
           :checked="showCityName"
           @change="emit('update:showCityName', ($event.target as HTMLInputElement).checked)"
         />
-        <span class="gif-field-label">Overlay city name</span>
+        <span class="gif-field-label">City label</span>
       </label>
 
       <label v-if="showCityName" class="gif-field">
@@ -274,12 +302,50 @@ const emitFlashColor = (event: Event) => {
       </label>
 
       <label v-if="showCityName" class="gif-field">
-        <span class="gif-field-label">Position</span>
+        <span class="gif-field-label">City position</span>
         <select
           class="gif-field-select"
           :disabled="controlsDisabled"
           :value="cityPosition"
           @change="emit('update:cityPosition', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="bottom-left">Bottom Left</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="top-left">Top Left</option>
+          <option value="top-right">Top Right</option>
+        </select>
+      </label>
+
+      <label class="gif-field gif-checkbox-field">
+        <input
+          type="checkbox"
+          :disabled="controlsDisabled"
+          :checked="showDistance"
+          @change="emit('update:showDistance', ($event.target as HTMLInputElement).checked)"
+        />
+        <span class="gif-field-label">Total distance</span>
+      </label>
+
+      <label v-if="showDistance" class="gif-field">
+        <span class="gif-field-label">Distance unit</span>
+        <select
+          class="gif-field-select"
+          :disabled="controlsDisabled"
+          :value="distanceUnit"
+          @change="emit('update:distanceUnit', ($event.target as HTMLSelectElement).value)"
+        >
+          <option value="km">Kilometers (km)</option>
+          <option value="miles">Miles (mi)</option>
+        </select>
+      </label>
+
+      <label v-if="showDistance" class="gif-field">
+        <span class="gif-field-label">Distance position</span>
+        <select
+          class="gif-field-select"
+          :disabled="controlsDisabled"
+          :value="distancePosition"
+          @change="emit('update:distancePosition', ($event.target as HTMLSelectElement).value)"
         >
           <option value="bottom-left">Bottom Left</option>
           <option value="bottom-right">Bottom Right</option>
@@ -297,6 +363,13 @@ const emitFlashColor = (event: Event) => {
     </div>
 
     <div v-if="exportError" class="error-banner gif-export-error">⚠️ {{ exportError }}</div>
+
+    <Transition name="toast">
+      <div v-if="toastMessage" class="toast-warning">
+        <span class="toast-icon">⚠️</span>
+        <span class="toast-text">{{ toastMessage }}</span>
+      </div>
+    </Transition>
   </section>
 </template>
 
@@ -505,4 +578,39 @@ const emitFlashColor = (event: Event) => {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.toast-warning {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background-color: #1a0f02;
+  border: 1px solid #ff8c00;
+  color: #ffb74d;
+  padding: 12px 18px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  font-weight: 500;
+  font-size: 0.92rem;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+}
+
+.toast-icon {
+  font-size: 1.1rem;
+}
+
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  transform: translateY(20px) scale(0.95);
+  opacity: 0;
+}
+
 </style>

@@ -55,6 +55,7 @@ run = "./bin/map-tools"
 description = "Run backend and frontend dev servers concurrently"
 run = """
 trap 'kill 0' SIGINT SIGTERM EXIT
+export AUTO_OPEN=false
 air &
 cd web && bun run dev
 """

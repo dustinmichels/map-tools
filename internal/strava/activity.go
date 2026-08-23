@@ -30,7 +30,7 @@ type ActivityRow struct {
 	ActivityName     string  `parquet:"activity_name"`
 	ActivityType     string  `parquet:"activity_type"`
 	ElapsedTime      int64   `parquet:"elapsed_time"`
-	Distance         float64 `parquet:"distance"`
+	DistanceKm       float64 `parquet:"distance_km"`
 	MovingTime       int64   `parquet:"moving_time"`
 	MaxSpeed         float64 `parquet:"max_speed"`
 	AverageSpeed     float64 `parquet:"average_speed"`

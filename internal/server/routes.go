@@ -462,9 +462,11 @@ COPY (
     activity_date,
     activity_name,
     activity_type,
+    distance_km AS distance,
     %s
   FROM read_parquet('%s')
   %s
+  ORDER BY activity_date ASC
 ) TO '%s' WITH (FORMAT 'GDAL', DRIVER 'GeoJSON');`,
 		buildRouteGeometrySelect(bbox),
 		quoteDuckDBPath(parquetPath),

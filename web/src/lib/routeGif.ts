@@ -32,6 +32,9 @@ export interface BuildRouteAnimationGifOptions {
   showCityName?: boolean;
   cityFont?: string;
   cityPosition?: string;
+  showDistance?: boolean;
+  distancePosition?: string;
+  distanceUnit?: string;
 }
 
 interface Projector {
@@ -348,6 +351,9 @@ export async function buildRouteAnimationGif({
   showCityName = false,
   cityFont = "serif",
   cityPosition = "bottom-left",
+  showDistance = false,
+  distancePosition = "bottom-right",
+  distanceUnit = "km",
 }: BuildRouteAnimationGifOptions) {
   if (typeof document === "undefined") {
     throw new Error("Animated GIF export is only available in the browser.");
@@ -361,14 +367,117 @@ export async function buildRouteAnimationGif({
     throw new Error("No ride geometry is available for GIF export.");
   }
 
+  const distanceFactor = distanceUnit === "miles" ? 0.62137119 : 1.0;
+  const unitLabel = distanceUnit === "miles" ? " mi" : " km";
+
+  const getRouteDistance = (feature: GeoJSONFeature): number => {
+    const dist = feature.properties?.distance;
+    let rawDist = 0;
+    if (typeof dist === "number") {
+      rawDist = dist;
+    } else if (typeof dist === "string") {
+      const parsed = parseFloat(dist);
+      rawDist = isNaN(parsed) ? 0 : parsed;
+    }
+    return rawDist * distanceFactor;
+  };
+
+  const totalAccumulatedDistance = routes.reduce((sum, r) => sum + getRouteDistance(r), 0);
+  const finalTotalRounded = Math.round(totalAccumulatedDistance);
+  const padLength = Math.max(4, String(finalTotalRounded).length);
   const squareSize = normalizeSize(size);
   const perFrameDelay = normalizeDelay(frameDelayMs, DEFAULT_FRAME_DELAY_MS);
   const endingDelay = normalizeDelay(finalFrameDelayMs, DEFAULT_FINAL_FRAME_DELAY_MS);
   const routeRgb = parseHexColor(routeColor);
   const flashRgb = parseHexColor(flashColor ?? DEFAULT_FLASH_COLOR);
-  const includeWhite = !!(showCityName && cityName);
+  const includeWhite = !!((showCityName && cityName) || showDistance);
   const { palette, needTertiaryWhite } = createPalette(routeRgb, flashRgb, includeWhite);
   const projector = createProjector(bbox, squareSize);
+
+  const drawOverlays = (context2d: CanvasRenderingContext2D, currentDistance: number) => {
+    const hasCity = !!(showCityName && cityName);
+    const hasDist = !!showDistance;
+
+    if (!hasCity && !hasDist) {
+      return;
+    }
+
+    context2d.save();
+    const fontSize = Math.max(16, Math.round(squareSize * 0.05));
+    const padding = Math.max(16, Math.round(squareSize * 0.05));
+    const lineSpacing = fontSize * 1.25;
+
+    let fontName = "Georgia, serif";
+    if (cityFont === "sans-serif") {
+      fontName = "system-ui, -apple-system, sans-serif";
+    } else if (cityFont === "monospace") {
+      fontName = "monospace";
+    }
+    context2d.font = `bold ${fontSize}px ${fontName}`;
+    context2d.fillStyle = "#ffffff";
+    context2d.textBaseline = "alphabetic";
+
+    const getCoords = (pos: string) => {
+      let x = padding;
+      let y = padding;
+      let align: CanvasTextAlign = "left";
+
+      if (pos === "bottom-left") {
+        x = padding;
+        y = squareSize - padding;
+        align = "left";
+      } else if (pos === "bottom-right") {
+        x = squareSize - padding;
+        y = squareSize - padding;
+        align = "right";
+      } else if (pos === "top-left") {
+        x = padding;
+        y = padding + fontSize;
+        align = "left";
+      } else if (pos === "top-right") {
+        x = squareSize - padding;
+        y = padding + fontSize;
+        align = "right";
+      }
+      return { x, y, align };
+    };
+
+    if (hasCity && hasDist && cityPosition === distancePosition) {
+      const { x, y, align } = getCoords(cityPosition);
+      context2d.textAlign = align;
+
+      let cityY = y;
+      let distY = y;
+
+      if (cityPosition.startsWith("bottom-")) {
+        distY = y;
+        cityY = y - lineSpacing;
+      } else {
+        cityY = y;
+        distY = y + lineSpacing;
+      }
+
+      context2d.fillText(cityName || "", x, cityY);
+      const rounded = Math.round(currentDistance);
+      const distStr = String(rounded).padStart(padLength, "0") + unitLabel;
+      context2d.fillText(distStr, x, distY);
+    } else {
+      if (hasCity) {
+        const { x, y, align } = getCoords(cityPosition);
+        context2d.textAlign = align;
+        context2d.fillText(cityName || "", x, y);
+      }
+      if (hasDist) {
+        const { x, y, align } = getCoords(distancePosition);
+        context2d.textAlign = align;
+        const rounded = Math.round(currentDistance);
+        const distStr = String(rounded).padStart(padLength, "0") + unitLabel;
+        context2d.fillText(distStr, x, y);
+      }
+    }
+
+    context2d.restore();
+  };
 
   // Separate canvas to accumulate only route paths (without text)
   const routesCanvas = document.createElement("canvas");
@@ -403,6 +512,14 @@ export async function buildRouteAnimationGif({
   const gif = GIFEncoder();
 
   try {
+    const routeDistances = routes.map(getRouteDistance);
+    const distancePrefixSums = [0];
+    let runningSum = 0;
+    for (let i = 0; i < routeDistances.length; i++) {
+      runningSum += routeDistances[i];
+      distancePrefixSums.push(runningSum);
+    }
+
     for (let index = 0; index < routes.length; index += 1) {
       if (index > 0) {
         routesCtx.save();
@@ -426,45 +543,8 @@ export async function buildRouteAnimationGif({
       drawRoute(ctx, routes[index], projector);
       ctx.restore();
 
-      if (showCityName && cityName) {
-        ctx.save();
-        const fontSize = Math.max(16, Math.round(squareSize * 0.05));
-        const padding = Math.max(16, Math.round(squareSize * 0.05));
-
-        let fontName = "Georgia, serif";
-        if (cityFont === "sans-serif") {
-          fontName = "system-ui, -apple-system, sans-serif";
-        } else if (cityFont === "monospace") {
-          fontName = "monospace";
-        }
-        ctx.font = `bold ${fontSize}px ${fontName}`;
-        ctx.fillStyle = "#ffffff";
-        ctx.textBaseline = "alphabetic";
-
-        let x = padding;
-        let y = padding;
-
-        if (cityPosition === "bottom-left") {
-          x = padding;
-          y = squareSize - padding;
-          ctx.textAlign = "left";
-        } else if (cityPosition === "bottom-right") {
-          x = squareSize - padding;
-          y = squareSize - padding;
-          ctx.textAlign = "right";
-        } else if (cityPosition === "top-left") {
-          x = padding;
-          y = padding + fontSize;
-          ctx.textAlign = "left";
-        } else if (cityPosition === "top-right") {
-          x = squareSize - padding;
-          y = padding + fontSize;
-          ctx.textAlign = "right";
-        }
-
-        ctx.fillText(cityName, x, y);
-        ctx.restore();
-      }
+      // Draw city name and distance overlays
+      drawOverlays(ctx, distancePrefixSums[index]);
 
       const frame = createIndexedFrame(
         ctx.getImageData(0, 0, squareSize, squareSize).data,
@@ -475,7 +555,7 @@ export async function buildRouteAnimationGif({
       gif.writeFrame(frame, squareSize, squareSize, {
         palette: index === 0 ? palette : undefined,
         repeat: index === 0 ? 0 : undefined,
-        delay: index === routes.length - 1 ? endingDelay : perFrameDelay,
+        delay: perFrameDelay,
       });
 
       onProgress?.({ completedRoutes: index + 1, totalRoutes: routes.length });
@@ -483,6 +563,32 @@ export async function buildRouteAnimationGif({
         await nextPaint();
       }
     }
+
+    // Draw the final route in route color onto routesCanvas
+    routesCtx.save();
+    routesCtx.beginPath();
+    routesCtx.rect(projector.clipX, projector.clipY, projector.clipWidth, projector.clipHeight);
+    routesCtx.clip();
+    drawRoute(routesCtx, routes[routes.length - 1], projector);
+    routesCtx.restore();
+
+    // Copy all final routes onto composite canvas
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, squareSize, squareSize);
+    ctx.drawImage(routesCanvas, 0, 0);
+
+    // Draw overlays with the final total accumulated distance
+    drawOverlays(ctx, totalAccumulatedDistance);
+
+    const finalFrame = createIndexedFrame(
+      ctx.getImageData(0, 0, squareSize, squareSize).data,
+      routeRgb,
+      flashRgb,
+      needTertiaryWhite,
+    );
+    gif.writeFrame(finalFrame, squareSize, squareSize, {
+      delay: endingDelay,
+    });
   } finally {
     // Clean context state is handled per-frame
   }

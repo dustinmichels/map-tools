@@ -4,6 +4,10 @@ interface StepItem {
   label: string;
 }
 
+const emit = defineEmits<{
+  (e: "step-click", stepNumber: number): void;
+}>();
+
 defineProps<{
   currentStep: number;
   steps: StepItem[];
@@ -20,7 +24,9 @@ defineProps<{
         :class="{
           active: currentStep === step.number,
           completed: currentStep > step.number,
+          clickable: step.number < currentStep,
         }"
+        @click="step.number < currentStep && emit('step-click', step.number)"
       >
         <div class="step-circle">{{ step.number }}</div>
         <span class="step-label">{{ step.label }}</span>

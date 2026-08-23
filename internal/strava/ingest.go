@@ -111,6 +111,43 @@ func IngestDir(dir, outPath string) (IngestResult, error) {
 	return processActivities(activities, opener, outPath)
 }
 
+func detectIsImperial(activities []Activity, openTrack func(filename string) ([]trackPoint, error)) bool {
+	// Check the first 10 activities to find one with a valid GPS track and non-zero distance
+	checked := 0
+	for _, act := range activities {
+		if act.Filename == nil || !isSupportedTrack(*act.Filename) {
+			continue
+		}
+		if act.Distance == nil || *act.Distance <= 0.1 {
+			continue
+		}
+		points, err := openTrack(*act.Filename)
+		if err != nil {
+			continue
+		}
+		if len(points) < 2 {
+			continue
+		}
+		var gpsMeters float64
+		for idx := 1; idx < len(points); idx++ {
+			gpsMeters += pointDistanceMeters(points[idx-1], points[idx])
+		}
+		if gpsMeters < 100 {
+			continue
+		}
+		gpsKm := gpsMeters / 1000.0
+		ratio := *act.Distance / gpsKm
+		checked++
+		if ratio < 0.8 {
+			return true // Imperial (miles)
+		}
+		if checked >= 10 {
+			break
+		}
+	}
+	return false // Default to Metric (km)
+}
+
 // processActivities is the shared core: filters to supported GPS activity
 // formats, parses tracks, and writes one geoparquet row per activity.
 func processActivities(
@@ -121,6 +158,12 @@ func processActivities(
 	var result IngestResult
 	result.Total = len(activities)
 
+	isImperial := detectIsImperial(activities, openTrack)
+	if isImperial {
+		slog.Info("Detected imperial units (miles) in Strava export. Distances will be converted to kilometers during ingestion.")
+	} else {
+		slog.Info("Detected metric units (kilometers) in Strava export.")
+	}
 	out, err := os.Create(outPath)
 	if err != nil {
 		return result, fmt.Errorf("create %q: %w", outPath, err)
@@ -198,8 +241,8 @@ func processActivities(
 					simplifiedWKB = wkb
 				}
 
-				row := activityToRow(j.act, wkb)
-				simplifiedRow := activityToRow(j.act, simplifiedWKB)
+				row := activityToRow(j.act, wkb, isImperial)
+				simplifiedRow := activityToRow(j.act, simplifiedWKB, isImperial)
 				results <- parseResult{index: j.index, row: &row, simplifiedRow: &simplifiedRow}
 			}
 		}()
@@ -321,7 +364,7 @@ func routeTrack(filename string, r io.Reader) ([]trackPoint, error) {
 	}
 }
 
-func activityToRow(act Activity, wkb []byte) ActivityRow {
+func activityToRow(act Activity, wkb []byte, isImperial bool) ActivityRow {
 	row := ActivityRow{
 		ActivityID:   act.ActivityID,
 		ActivityDate: act.ActivityDate,
@@ -334,7 +377,11 @@ func activityToRow(act Activity, wkb []byte) ActivityRow {
 		row.ElapsedTime = *act.ElapsedTime
 	}
 	if act.Distance != nil {
-		row.Distance = *act.Distance
+		val := *act.Distance
+		if isImperial {
+			val = val * 1.609344
+		}
+		row.DistanceKm = val
 	}
 	if act.MovingTime != nil {
 		row.MovingTime = *act.MovingTime

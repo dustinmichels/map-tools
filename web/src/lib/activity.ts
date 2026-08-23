@@ -143,3 +143,12 @@ export const formatCreatedAt = (value: string) => {
     timeStyle: "short",
   }).format(date);
 };
+
+export const formatCityName = (name: string): string => {
+  if (!name) return "";
+  const parts = name.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1) {
+    return name;
+  }
+  return `${parts[0]}, ${parts[parts.length - 1]}`;
+};

@@ -87,6 +87,18 @@ code {
   transition: opacity 0.2s;
 }
 
+.step-item.clickable {
+  cursor: pointer;
+}
+
+.step-item.clickable:hover {
+  opacity: 1;
+}
+
+.step-item.clickable:hover .step-label {
+  text-decoration: underline;
+}
+
 .step-item.active {
   opacity: 1;
   color: #ff9900;
