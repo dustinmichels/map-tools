@@ -16,6 +16,8 @@ const INITIAL_PREVIEW_ROUTE_TARGET = 200;
 const DEFAULT_ROUTE_COLOR = "#ff8c00";
 const DEFAULT_FLASH_COLOR = "#ffffff";
 const HEX_COLOR_PATTERN = /^#(?:[0-9a-fA-F]{6})$/;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 
 const slugify = (value: string) =>
   value

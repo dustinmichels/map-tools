@@ -354,6 +354,13 @@ const nextButton = computed(() => {
 
   return null;
 });
+const handleNextButtonClick = () => {
+  const next = nextButton.value;
+  if (!next || next.disabled) {
+    return;
+  }
+  next.action();
+};
 
 const resetFlow = () => {
   currentStep.value = 1;
@@ -401,7 +408,7 @@ const handleGlobalKeydown = (event: KeyboardEvent) => {
 
     if (nextButton.value && !nextButton.value.disabled) {
       event.preventDefault();
-      nextButton.value.action();
+      handleNextButtonClick();
     }
   }
 };
@@ -423,7 +430,7 @@ onUnmounted(() => {
           v-if="nextButton"
           class="btn btn-primary"
           :disabled="nextButton.disabled"
-          @click="nextButton.action"
+          @click="handleNextButtonClick"
         >
           {{ nextButton.label }}
         </button>
