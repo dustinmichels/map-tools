@@ -17,6 +17,7 @@ const props = defineProps<{
   flashColor: string;
   lineOpacity: number;
   frameDelayMs: number;
+  previewUrl: string | null;
   exportError: string | null;
   statusMessage: string | null;
   showCityName: boolean;

@@ -1,206 +1,154 @@
-# Frontend Architecture Reorganization and Library Proposal
+# Frontend Architecture Recommendations
 
-This document outlines structural and library improvements for the Map Tools Vue frontend.
+This document proposes the next frontend improvements for the Map Tools Vue application.
 
 ---
 
-## 1. State Management Optimization (Singleton Pattern)
+## 1. Share uploaded dataset state across screens
 
-### Current Architecture
+Keep upload-library state synchronized anywhere the app can rename, delete, simplify, or reopen datasets.
 
-State within composables (e.g., `useUploadedDatasets.ts`, `useActivityDataset.ts`) is instantiated inside the returned factory functions. When multiple pages or components invoke these composables, they receive separate, isolated reactive state instances:
+### Recommendation
 
-```ts
-// web/src/composables/useUploadedDatasets.ts
-export function useUploadedDatasets() {
-  const uploads = ref<UploadedDataset[]>([]);
-  const isLoading = ref(false);
-  // ...
-}
-```
+- Move the reactive state in `web/src/composables/useUploadedDatasets.ts` to module scope so every consumer shares the same `uploads`, `isLoading`, `error`, and `busyDatasetId` refs.
+- Keep `web/src/composables/useActivityDataset.ts` page-local unless the product needs one active dataset session to survive route changes or be shared between flows.
+- Do not add Pinia unless state coordination grows beyond a few composables with obvious shared ownership.
 
-- **Risk:** Data changes on one screen (e.g., renaming, deleting, or simplifying a dataset on `UploadPage.vue`) do not propagate automatically to selection menus on other screens (e.g., `LightningMapFlow.vue`, `CompareFlow.vue`) until a manual reload is triggered.
-
-### Proposed Improvement
-
-Elevate the reactive references outside the exported composable function to convert the module into a shared singleton. This allows all importing components to share the same synchronized state without introducing Pinia boilerplate.
+### Example direction
 
 ```ts
-// web/src/composables/useUploadedDatasets.ts
 import { ref } from "vue";
 import type { UploadedDataset } from "../lib/activity";
 
-// Global references shared by all components importing this composable
 const uploads = ref<UploadedDataset[]>([]);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const busyDatasetId = ref<string | null>(null);
 
 export function useUploadedDatasets() {
-  const loadUploads = async () => {
-    isLoading.value = true;
-    error.value = null;
-    try {
-      uploads.value = await listUploadedDatasets();
-    } catch (err) {
-      error.value =
-        err instanceof Error ? err.message : "Failed to load uploads";
-    } finally {
-      isLoading.value = false;
-    }
-  };
-
+  // actions operate on shared refs
   return {
     uploads,
     isLoading,
     error,
     busyDatasetId,
-    loadUploads,
   };
 }
 ```
 
 ---
 
-## 2. Directory Reorganization
+## 2. Keep the component tree feature-oriented
 
-### Current Directory Structure
+Use a simple directory structure that matches feature boundaries instead of forcing a deep architecture taxonomy.
 
-Shared component dependencies (like `MapView.vue`, `BBoxCoords.vue`, and `SearchCity.vue`) sit at the flat root of `web/src/components/`, mixed with feature-specific subdirectories.
+### Recommendation
 
-### Proposed Directory Structure
+- Keep feature-specific UI grouped under:
+  - `web/src/components/flows/`
+  - `web/src/components/uploads/`
+  - `web/src/components/home/`
+- Reserve the root of `web/src/components/` for broadly shared primitives only.
+- If shared root-level components continue to grow, move them into `web/src/components/shared/`.
+- Avoid a full directory rewrite unless it directly improves navigation or reduces coupling in active work.
 
-Migrate to a domain-driven structure, separating generic UI primitives, shared domain components, and page-specific feature modules:
+### Suggested target
 
-```
-web/src/
-├── components/
-│   ├── ui/               # Generic UI primitives
-│   │   ├── FlowStepper.vue
-│   │   └── BBoxCoords.vue
-│   ├── shared/           # Shared map-specific domain components
-│   │   ├── MapView.vue
-│   │   └── SearchCity.vue
-│   └── features/         # Feature modules containing pages and specific sub-cards
-│       ├── uploads/
-│       │   ├── UploadPage.vue
-│       │   ├── UploadedDatasetList.vue
-│       │   └── BulkUploadCard.vue
-│       └── flows/
-│           ├── LightningMapFlow.vue
-│           ├── CompareFlow.vue
-│           ├── RouteGifExportCard.vue
-│           ├── AreaSelectionCard.vue
-│           └── DatasetUploadCard.vue
+```text
+web/src/components/
+├── flows/
+├── uploads/
+├── home/
+└── shared/
+    ├── MapView.vue
+    ├── SearchCity.vue
+    └── BBoxCoords.vue
 ```
 
 ---
 
-## 3. Styling Refactoring (Tailwind CSS Integration)
+## 3. Keep Tailwind as the styling base
 
-### Current Architecture
+Use Tailwind for layout, spacing, color, and responsive behavior. Keep a thin semantic layer only where it improves reuse.
 
-Styling relies on `web/src/main.css` containing over 700 lines of custom CSS (`.btn`, `.btn-primary`, `.card`, `.upload-zone`, etc.), layouts, and media queries.
+### Recommendation
 
-- **Risk:** High visual maintenance overhead. Any tweak to layout or color variables requires writing custom CSS classes, leading to class duplication and styling conflicts.
-
-### Proposed Improvement
-
-Install Tailwind CSS to replace custom component styles with utility classes. This eliminates `main.css` class bloat, ensures consistent spacing, and enables easy responsive classes (e.g., `md:grid-cols-2`) and focus/hover transitions.
-
-```html
-<!-- Before (Requires custom css for .card, .hero-card, .btn) -->
-<div class="card hero-card">
-  <button class="btn btn-primary" :disabled="busy">Action</button>
-</div>
-
-<!-- After (Tailwind CSS utility styling) -->
-<div
-  class="p-6 bg-slate-900 border border-slate-800 rounded-lg shadow-sm flex flex-col"
->
-  <button
-    class="px-4 py-2 bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-medium rounded-md transition-colors"
-    :disabled="busy"
-  >
-    Action
-  </button>
-</div>
-```
+- Continue importing Tailwind through `web/src/main.css`.
+- Prefer utility classes for component-local layout and one-off styling decisions.
+- Keep shared semantic classes such as buttons, cards, and upload zones only when they remove repetition across multiple screens.
+- Treat `main.css` as a small design-token and shared-pattern layer, not a second styling system.
+- If a class is used in one place and maps directly to a readable utility stack, inline it.
 
 ---
 
-## 4. Recommended Library Additions
+## 4. Keep using VueUse for browser-facing composables
 
-### 1. VueUse (`@vueuse/core`)
+VueUse is the right default for common reactive browser utilities.
 
-A library containing Composition API utilities that reduces boilerplate:
+### Recommendation
 
-- **File Drag-and-Drop:** `BulkUploadCard.vue` and `DatasetUploadCard.vue` write custom drag-and-drop listeners. Replace them with the `useDropZone` utility:
-  ```ts
-  import { useDropZone } from "@vueuse/core";
-
-  const dropZoneRef = ref<HTMLDivElement>();
-  const { isOverDropZone } = useDropZone(dropZoneRef, (files) => {
-    if (files) emit("select-files", Array.from(files));
-  });
-  ```
-- **Setting Persistence:** User preferences (e.g., `routeColor`, `flashColor`, `distanceUnit`, and `dateFormat` in `useRouteGifExport.ts`) reset on page reload. Bind these settings to `useLocalStorage` to persist them automatically across sessions:
-  ```ts
-  import { useLocalStorage } from "@vueuse/core";
-
-  const routeColor = useLocalStorage("map-route-color", "#ff8c00");
-  const flashColor = useLocalStorage("map-flash-color", "#ffffff");
-  ```
-- **Map Sizing & Debouncing:** Use `useResizeObserver` for MapLibre container resizing and `useDebounceFn` to rate-limit search queries or bounding box changes.
-
-### 2. Radix Vue / PrimeVue
-
-Replacing custom elements with accessible UI library primitives improves keyboard navigation and ARIA support.
-
-- **Stepper:** Replaces `FlowStepper.vue` with a pre-built component that handles mobile responsive steps and focus management.
-- **Color Picker & Sliders:** Replaces raw browser input elements (`<input type="color">` and `<input type="range">`) with styled, customizable overlay components matching the application theme.
+- Use `useDropZone` for file drag-and-drop interactions.
+- Use `useLocalStorage` for user-facing preferences that should survive reloads.
+- Use `useResizeObserver` for map and panel resizing concerns.
+- Use `useDebounceFn` for search and viewport-driven updates.
+- Prefer VueUse before writing custom wrappers around DOM events, persistence, or timers.
 
 ---
 
-## 5. Modularizing `MapView.vue`
+## 5. Do not add a full UI component library yet
 
-### Current Architecture
+Avoid pulling in a heavy UI dependency to replace small custom controls.
 
-`MapView.vue` has grown to ~850 lines. It mixes three separate concerns:
+### Recommendation
 
-1. MapLibre initialization, sizing, and lifecycle cleanup.
-2. Layer definition, source updates, and styling.
-3. Interaction logic (bounding box coordinate marker drags, route line hovering, popup overlays).
+- Keep `FlowStepper.vue` custom unless it becomes a maintenance or accessibility burden.
+- Keep native `<input type="color">` and `<input type="range">` controls unless product requirements demand richer styling or interaction.
+- Revisit a library such as Radix Vue or PrimeVue only if there is a concrete need:
+  - keyboard-navigation bugs
+  - accessibility gaps
+  - repeated complex overlay components
+  - a broader design-system push
+- If that need appears, prefer the smallest dependency that solves the specific problem.
 
-### Proposed Improvement
+---
 
-Extract the MapLibre engine logic into a composable named `useMapLibre.ts`. This isolates MapLibre configuration, makes map interactions unit-testable, and keeps the template of `MapView.vue` clean.
+## 6. Break up `MapView.vue` by responsibility
 
-```ts
-// web/src/composables/useMapLibre.ts
-import { shallowRef } from "vue";
-import { Map as MapLibreMap } from "maplibre-gl";
+`MapView.vue` should stop owning every map concern directly.
 
-export function useMapLibre() {
-  const map = shallowRef<MapLibreMap | null>(null);
+### Recommendation
 
-  const initMap = (container: HTMLElement, options: any) => {
-    map.value = new MapLibreMap({ container, ...options });
-    return map.value;
-  };
+- Extract MapLibre setup, teardown, and resize handling into a composable or helper module.
+- Extract bounding-box marker creation, drag behavior, and bbox event wiring into a focused module.
+- Extract route source/layer synchronization, tooltip rendering, and route interaction handlers into separate helpers.
+- Keep `MapView.vue` responsible for orchestration and template wiring, not low-level map mechanics.
 
-  const updateSource = (sourceId: string, data: any) => {
-    if (!map.value) return;
-    const source = map.value.getSource(sourceId) as any;
-    if (source) {
-      source.setData(data);
-    }
-  };
+### Suggested split
 
-  return {
-    map,
-    initMap,
-    updateSource,
-  };
-}
-```
+1. `useMapLibre.ts`
+   - create map
+   - destroy map
+   - resize handling
+   - viewport event hookup
+2. `mapBBox.ts`
+   - bbox polygon source updates
+   - draggable marker lifecycle
+   - bbox drag math
+3. `mapRoutes.ts`
+   - source/layer registration
+   - feature updates
+   - hover/click handlers
+   - tooltip management
+
+This split is more important than the exact filenames. The goal is to reduce the size and responsibility surface of `MapView.vue`.
+
+---
+
+## Priority order
+
+1. Extract responsibilities out of `MapView.vue`.
+2. Share `useUploadedDatasets()` state across upload and flow screens.
+3. Keep the current feature-based component structure; only move shared root components if it clarifies ownership.
+4. Continue the Tailwind + light semantic CSS approach.
+5. Continue using VueUse instead of custom browser utility code.
+6. Postpone a full UI component library until a specific accessibility or design-system need exists.
