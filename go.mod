@@ -4,13 +4,13 @@ go 1.27.0
 
 require (
 	github.com/go-chi/chi/v5 v5.3.1
-	github.com/google/uuid v1.6.0
 	github.com/muktihari/fit v0.28.3
 	github.com/parquet-go/parquet-go v0.32.0
 )
 
 require (
 	github.com/andybalholm/brotli v1.1.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/parquet-go/bitpack v1.0.0 // indirect
 	github.com/parquet-go/jsonlite v1.0.0 // indirect

@@ -16,9 +16,10 @@ import (
 	"time"
 	"unicode"
 
+	"uuid"
+
 	"github.com/dustinmichels/map-tools/internal/strava"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func apiRouter() http.Handler {
@@ -34,6 +35,14 @@ func apiRouter() http.Handler {
 	r.Post("/transcode", handleTranscode)
 	r.Get("/transcode/check", handleTranscodeCheck)
 	return r
+}
+
+type requestDecoder struct{}
+
+func (requestDecoder) decode[T any](r *http.Request) (T, error) {
+	var val T
+	err := json.NewDecoder(r.Body).Decode(&val)
+	return val, err
 }
 
 type UploadedDataset struct {
@@ -135,8 +144,9 @@ func handleRenameUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req renameUploadRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var reqDecoder requestDecoder
+	req, err := reqDecoder.decode[renameUploadRequest](r)
+	if err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -401,8 +411,9 @@ func resolveFilterParquetPath(record uploadRecord, geometryMode string) (string,
 func handleFilter(w http.ResponseWriter, r *http.Request) {
 	slog.Info("received filter request")
 
-	var req FilterRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var reqDecoder requestDecoder
+	req, err := reqDecoder.decode[FilterRequest](r)
+	if err != nil {
 		slog.Error("failed to decode filter request", "err", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
